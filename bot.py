@@ -37,6 +37,27 @@ async def on_ready():
 async def force_sync(ctx):
     synced = await bot.tree.sync()
     await ctx.send(f"커맨드 {len(synced)}개 동기화 완료")
+    
+@bot.command(name="setup")
+@commands.has_permissions(administrator=True)
+async def setup(ctx: commands.Context):
+    channel = bot.get_channel(TAMAGOTCHI_CHANNEL_ID)
+    if channel is None:
+        await ctx.send("❌ TAMAGOTCHI_CHANNEL_ID를 확인해주세요.")
+        return
+
+    embed = discord.Embed(
+        title="🐣 AI 다마고치에 오신 걸 환영해요!",
+        description=(
+            "다마고치와 함께 건강한 식습관을 만들어보세요.\n\n"
+            "아래 버튼을 눌러 나만의 다마고치를 만들어보세요! 👇"
+        ),
+        color=discord.Color.from_rgb(255, 220, 120),
+    )
+
+    from cogs.onboarding import StartView
+    await channel.send(embed=embed, view=StartView())
+    await ctx.send("✅ 고정 메시지를 전송했어요!", delete_after=5)
 
 
 async def main():
