@@ -1,17 +1,16 @@
 """
 utils/embed.py — 다마고치 메인 Embed 생성 및 수정
-
 Embed 구조:
   - 상단: 다마고치 이미지 (thumbnail)
   - 제목: {tamagotchi_name}의 하루
   - 설명: GPT 한마디
-  - 버튼: [🍽️ 식사 입력] [📊 오늘 요약] [⚙️ 설정]
+  - 버튼: [🍽️ 식사 입력] [📊 오늘 요약] [📅 오늘 일정] [⚙️ 설정 변경]
 """
-
 import os
+import asyncio
 import discord
+from datetime import date, timedelta
 from utils.image import select_image, IMAGE_DESCRIPTIONS
-
 
 IMAGES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "images")
 
@@ -29,9 +28,6 @@ def build_main_embed(
     comment: str,
     image_filename: str,
 ) -> tuple[discord.Embed, discord.File | None]:
-    """
-    메인 Embed와 첨부 이미지 파일 반환.
-    """
     name = user.get("tamagotchi_name", "타마")
     description = IMAGE_DESCRIPTIONS.get(image_filename, "")
 
@@ -50,21 +46,266 @@ def build_main_embed(
 
 
 def _embed_color(tama: dict) -> int:
-    hp = tama.get("hp", 70)
+    hp     = tama.get("hp", 70)
     hunger = tama.get("hunger", 70)
-    mood = tama.get("mood", 70)
+    mood   = tama.get("mood", 70)
     avg = (hp + hunger + mood) / 3
-
     if avg >= 70:
-        return 0x57F287   # 초록 (good)
+        return 0x57F287
     if avg >= 40:
-        return 0xFEE75C   # 노랑 (neutral)
-    return 0xED4245       # 빨강 (bad)
+        return 0xFEE75C
+    return 0xED4245
 
 
+def _hunger_gain(calories: int) -> int:
+    if calories >= 800:
+        return 50
+    if calories >= 400:
+        return 35
+    return 15
+
+
+def _pm_grade(pm10: int, pm25: int) -> str:
+    if pm10 > 150 or pm25 > 75:
+        return "매우나쁨 😷"
+    if pm10 > 80 or pm25 > 35:
+        return "나쁨 😷"
+    if pm10 > 30 or pm25 > 15:
+        return "보통 😐"
+    return "좋음 😊"
+
+
+def _weather_icon(weather: str, temp: float) -> str:
+    if "눈" in weather:
+        return "❄️"
+    if "비" in weather:
+        return "🌧️"
+    if "흐림" in weather or "구름" in weather:
+        return "☁️"
+    if temp >= 26:
+        return "☀️🥵"
+    if temp <= 5:
+        return "🥶"
+    return "☀️"
+
+
+# ══════════════════════════════════════════════════════
+# 식사 입력 Modal — 자연어 방식 + 합산 처리
+# ══════════════════════════════════════════════════════
+class MealInputModal(discord.ui.Modal, title="🍽️ 식사 입력"):
+    food_input = discord.ui.TextInput(
+        label="뭐 먹었어? 자유롭게 말해줘!",
+        placeholder=(
+            "예: 어제 저녁에 치킨 먹었어\n"
+            "예: 오늘 점심 삼겹살이랑 된장찌개\n"
+            "예: 그저께 아침에 시리얼\n"
+            "예: 라면 한 그릇 (날짜/종류 생략하면 오늘 식사로 처리)"
+        ),
+        style=discord.TextStyle.paragraph,
+        max_length=200,
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            from utils.db import (
+                get_user, get_tamagotchi, create_meal, update_tamagotchi,
+                get_calories_by_date, get_meals_by_date,
+                is_all_meals_done_on_date,
+            )
+            from utils.gpt import parse_meal_input, analyze_meal_text, generate_comment
+
+            user_id = str(interaction.user.id)
+            user = get_user(user_id)
+            tama = get_tamagotchi(user_id)
+
+            if not user or not tama:
+                await interaction.followup.send("❌ 등록된 유저가 아니야!", ephemeral=True)
+                return
+
+            raw_text = self.food_input.value.strip()
+
+            # GPT로 자연어 파싱
+            parsed    = await parse_meal_input(raw_text)
+            days_ago  = parsed.get("days_ago", 0)
+            meal_type = parsed.get("meal_type", "식사")
+            food_name = parsed.get("food_name", raw_text)
+
+            target_date = date.today() - timedelta(days=days_ago)
+            is_past = days_ago > 0
+
+            if days_ago == 0:
+                date_label = "오늘"
+            elif days_ago == 1:
+                date_label = f"어제({target_date.strftime('%m/%d')})"
+            else:
+                date_label = f"그저께({target_date.strftime('%m/%d')})"
+
+            result   = await analyze_meal_text(food_name)
+            calories = result.get("calories", 0)
+            protein  = result.get("protein", 0)
+            carbs    = result.get("carbs", 0)
+            fat      = result.get("fat", 0)
+            fiber    = result.get("fiber", 0)
+
+            today_cal_before = get_calories_by_date(user_id, target_date)
+
+            comment = await generate_comment(
+                context=f"방금 {food_name}을 먹었어. 반응해줘!",
+                user=user,
+                today_calories=today_cal_before + calories,
+                recent_meals=food_name,
+                weather_info=None,
+            )
+
+            create_meal(
+                user_id=user_id,
+                meal_type=meal_type,
+                food_name=food_name,
+                calories=calories,
+                protein=protein,
+                carbs=carbs,
+                fat=fat,
+                fiber=fiber,
+                input_method="text",
+                gpt_comment=comment,
+                recorded_date=target_date if is_past else None,
+            )
+
+            if not is_past:
+                new_hunger = min(100, (tama.get("hunger") or 50) + _hunger_gain(calories))
+                new_mood   = min(100, (tama.get("mood") or 50) + 5)
+                new_hp     = min(100, (tama.get("hp") or 100) + 5)
+                update_tamagotchi(user_id, {
+                    "hunger": new_hunger,
+                    "mood": new_mood,
+                    "hp": new_hp,
+                })
+
+            today_cal = get_calories_by_date(user_id, target_date)
+
+            await interaction.followup.send(
+                f"✅ **{date_label} {meal_type}** — {food_name}\n"
+                f"칼로리: **{calories} kcal** | "
+                f"단백질: {protein}g | 탄수화물: {carbs}g | 지방: {fat}g\n"
+                f"{date_label} 총 칼로리: **{today_cal} kcal**",
+                ephemeral=True,
+            )
+
+            if is_past and is_all_meals_done_on_date(user_id, target_date):
+                meals      = get_meals_by_date(user_id, target_date)
+                total      = get_calories_by_date(user_id, target_date)
+                target_cal = user.get("daily_cal_target") or 2000
+                thread_id  = user.get("thread_id")
+                if thread_id:
+                    guild  = interaction.guild
+                    thread = guild.get_thread(int(thread_id))
+                    if thread:
+                        await _send_daily_analysis(
+                            thread, user, tama, meals, total, target_cal, target_date
+                        )
+                return
+
+            if not is_past:
+                thread_id = user.get("thread_id")
+                if thread_id:
+                    guild  = interaction.guild
+                    thread = guild.get_thread(int(thread_id))
+                    if thread:
+                        tama_updated = get_tamagotchi(user_id)
+                        await create_or_update_embed(
+                            thread, user, tama_updated, comment, just_ate=True
+                        )
+                        await asyncio.sleep(180)
+                        tama_final = get_tamagotchi(user_id)
+                        from utils.gpt import generate_comment as gc
+                        comment_after = await gc(
+                            context="식사 후 잠시 지났어. 평소처럼 한마디 해줘.",
+                            user=user,
+                            today_calories=get_calories_by_date(user_id, date.today()),
+                            recent_meals=food_name,
+                            weather_info=None,
+                        )
+                        await create_or_update_embed(thread, user, tama_final, comment_after)
+
+        except Exception as e:
+            print(f"[MealInputModal 오류] {e}")
+            import traceback
+            traceback.print_exc()
+            await interaction.followup.send(f"❌ 오류가 발생했어: {e}", ephemeral=True)
+
+
+async def _send_daily_analysis(thread, user, tama, meals, total_cal, target_cal, target_date):
+    from utils.gpt import generate_comment
+    from utils.db import get_tamagotchi
+
+    user_id   = str(user.get("user_id") or "")
+    tama_name = user.get("tamagotchi_name", "타마")
+    date_label = target_date.strftime("%m월 %d일")
+
+    overfed  = total_cal > target_cal
+    underfed = total_cal < target_cal * 0.67
+
+    if overfed:
+        context = f"오늘 칼로리를 너무 많이 먹었어 ({total_cal}kcal). 걱정스럽지만 부드럽게 말해줘."
+    elif underfed:
+        context = f"오늘 칼로리를 너무 적게 먹었어 ({total_cal}kcal). 걱정스럽지만 부드럽게 말해줘."
+    else:
+        context = f"오늘 칼로리가 적당해 ({total_cal}kcal). 칭찬해줘!"
+
+    comment = await generate_comment(
+        context=context,
+        user=user,
+        today_calories=total_cal,
+        recent_meals=", ".join(m.get("food_name", "") for m in meals),
+        weather_info=None,
+    )
+
+    meal_icons = {"아침": "🌅", "점심": "☀️", "저녁": "🌙", "간식": "🌃", "식사": "🍽️"}
+
+    meal_summary: dict[str, dict] = {}
+    for m in meals:
+        mt = m.get("meal_type", "식사")
+        if mt not in meal_summary:
+            meal_summary[mt] = {"foods": [], "calories": 0}
+        meal_summary[mt]["foods"].append(m.get("food_name", ""))
+        meal_summary[mt]["calories"] += m.get("calories", 0)
+
+    lines = [
+        f"{meal_icons.get(mt, '🍽️')} {mt}: {', '.join(v['foods'])} ({v['calories']} kcal)"
+        for mt, v in meal_summary.items()
+    ]
+
+    embed = discord.Embed(
+        title=f"📊 {date_label} 하루 결산",
+        description="\n".join(lines) or "기록 없음",
+        color=0xED4245 if (overfed or underfed) else 0x57F287,
+    )
+    embed.add_field(
+        name="🔥 총 칼로리",
+        value=f"`{total_cal}` / `{target_cal}` kcal",
+        inline=False,
+    )
+    embed.add_field(
+        name=f"💬 {tama_name} 한마디",
+        value=f"*{comment}*",
+        inline=False,
+    )
+    await thread.send(embed=embed)
+
+    if target_date == date.today() and user_id:
+        tama_updated = get_tamagotchi(user_id)
+        if tama_updated:
+            await create_or_update_embed(
+                thread, user, tama_updated, comment,
+                overfed=overfed, underfed=underfed
+            )
+
+
+# ══════════════════════════════════════════════════════
+# 메인 버튼 View
+# ══════════════════════════════════════════════════════
 class MainView(discord.ui.View):
-    """메인 Embed 하단 버튼 뷰 (영구 지속)"""
-
     def __init__(self):
         super().__init__(timeout=None)
 
@@ -76,11 +317,8 @@ class MainView(discord.ui.View):
     async def meal_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ):
-        await interaction.response.send_message(
-            "먹은 음식을 입력해줘! (예: `삼겹살 200g, 된장찌개`)\n"
-            "사진을 첨부해도 돼 📸",
-            ephemeral=True,
-        )
+        print(f"[meal_button] 클릭 — user: {interaction.user}")
+        await interaction.response.send_modal(MealInputModal())
 
     @discord.ui.button(
         label="📊 오늘 요약",
@@ -90,24 +328,114 @@ class MainView(discord.ui.View):
     async def summary_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ):
-        # summary cog에서 처리 — 여기선 placeholder
+        print(f"[summary_button] 클릭 — user: {interaction.user}")
         await interaction.response.defer(ephemeral=True)
         from cogs.summary import send_summary
         await send_summary(interaction)
 
     @discord.ui.button(
-        label="⚙️ 설정",
+        label="📅 오늘 일정",
+        style=discord.ButtonStyle.secondary,
+        custom_id="btn_today",
+    )
+    async def today_button(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        print(f"[today_button] 클릭 — user: {interaction.user}")
+        await interaction.response.defer(ephemeral=True)
+        try:
+            from utils.db import get_user, get_latest_weather, get_today_calories
+
+            user_id = str(interaction.user.id)
+            user    = get_user(user_id)
+
+            if not user:
+                await interaction.followup.send("❌ 등록된 유저가 아니야!", ephemeral=True)
+                return
+
+            tama_name  = user.get("tamagotchi_name", "타마")
+            target_cal = user.get("daily_cal_target") or 2000
+            today_cal  = get_today_calories(user_id)
+            ratio      = min(today_cal / target_cal, 1.0) if target_cal > 0 else 0
+            filled     = int(ratio * 10)
+            bar        = "█" * filled + "░" * (10 - filled)
+            percent    = int(ratio * 100)
+
+            # 날씨 정보
+            weather_log = get_latest_weather(user_id)
+            if weather_log:
+                weather  = weather_log.get("weather", "알 수 없음")
+                temp     = weather_log.get("temp", 0)
+                pm10     = weather_log.get("pm10", 0)
+                pm25     = weather_log.get("pm25", 0)
+                icon     = _weather_icon(weather, temp)
+                pm_grade = _pm_grade(pm10, pm25)
+                weather_text = (
+                    f"{icon} {weather} / {temp}°C\n"
+                    f"미세먼지 PM10: {pm10} | PM2.5: {pm25} ({pm_grade})"
+                )
+            else:
+                weather_text = "날씨 정보 없음 (기상 시간에 자동 갱신돼요)"
+
+            # 식사 알림 시간
+            breakfast = user.get("breakfast_time", "08:00")
+            lunch     = user.get("lunch_time", "12:00")
+            dinner    = user.get("dinner_time", "18:00")
+
+            today_str = date.today().strftime("%Y년 %m월 %d일")
+
+            embed = discord.Embed(
+                title=f"📅 오늘 일정 — {today_str}",
+                color=0x5865F2,
+            )
+            embed.add_field(
+                name="🔥 목표 칼로리",
+                value=f"목표: `{target_cal}` kcal\n현재: `{today_cal}` kcal ({percent}%)\n`{bar}`",
+                inline=False,
+            )
+            embed.add_field(
+                name="🍽️ 식사 알림 시간",
+                value=f"🌅 아침: {breakfast}  ☀️ 점심: {lunch}  🌙 저녁: {dinner}",
+                inline=False,
+            )
+            embed.add_field(
+                name="🌤️ 현재 날씨",
+                value=weather_text,
+                inline=False,
+            )
+            embed.set_footer(text=f"이 메시지는 {tama_name}만 볼 수 있어요 👀")
+
+            await interaction.followup.send(embed=embed, ephemeral=True)
+
+        except Exception as e:
+            print(f"[today_button 오류] {e}")
+            import traceback
+            traceback.print_exc()
+            await interaction.followup.send(f"❌ 오류가 발생했어: {e}", ephemeral=True)
+
+    @discord.ui.button(
+        label="⚙️ 설정 변경",
         style=discord.ButtonStyle.secondary,
         custom_id="btn_settings",
     )
     async def settings_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ):
-        await interaction.response.send_message(
-            "설정 기능은 준비 중이에요 🔧", ephemeral=True
-        )
+        print(f"[settings_button] 클릭 — user: {interaction.user}")
+        from utils.db import get_user
+        from cogs.settings import SettingsModal
+        user = get_user(str(interaction.user.id))
+        if not user:
+            await interaction.response.send_message(
+                "❌ 등록된 유저가 아니야!", ephemeral=True
+            )
+            return
+        await interaction.response.send_modal(SettingsModal(user=user))
 
 
+# ══════════════════════════════════════════════════════
+# Embed 생성/수정
+# ══════════════════════════════════════════════════════
 async def create_or_update_embed(
     thread: discord.Thread,
     user: dict,
@@ -120,10 +448,6 @@ async def create_or_update_embed(
     underfed: bool = False,
     goal_achieved: bool = False,
 ) -> str:
-    """
-    쓰레드 내 메인 Embed를 생성하거나 수정한다.
-    Returns: embed_message_id (str)
-    """
     image_filename = select_image(
         tama, user, weather,
         just_ate=just_ate,
@@ -131,13 +455,11 @@ async def create_or_update_embed(
         underfed=underfed,
         goal_achieved=goal_achieved,
     )
-
     embed, img_file = build_main_embed(user, tama, comment, image_filename)
     view = MainView()
 
     embed_msg_id = tama.get("embed_message_id")
 
-    # 기존 메시지 수정 시도
     if embed_msg_id:
         try:
             msg = await thread.fetch_message(int(embed_msg_id))
@@ -147,15 +469,13 @@ async def create_or_update_embed(
                 await msg.edit(embed=embed, view=view)
             return embed_msg_id
         except discord.NotFound:
-            pass  # 메시지가 삭제된 경우 새로 생성
+            pass
 
-    # 새 메시지 생성
     if img_file:
         msg = await thread.send(file=img_file, embed=embed, view=view)
     else:
         msg = await thread.send(embed=embed, view=view)
 
-    # DB에 메시지 ID 저장
     from utils.db import set_embed_message_id, update_tamagotchi
     set_embed_message_id(str(thread.owner_id or ""), str(msg.id))
     update_tamagotchi(str(thread.owner_id or ""), {"current_image": image_filename})

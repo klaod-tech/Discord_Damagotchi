@@ -1,14 +1,13 @@
 """
 utils/gpt.py — OpenAI API 래퍼
-
 담당 기능:
   - 온보딩: 권장 칼로리 계산
+  - 식사 입력: 자연어 파싱 (날짜 + 식사 종류 + 음식명 추출)
   - 식사 입력: 음식 칼로리/영양소 분석 (텍스트)
-  - 식사 입력: 사진 분석 (Vision)
   - 다마고치 대사 생성
 """
-
 import os
+import json
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
 
@@ -27,9 +26,6 @@ async def calculate_daily_calories(
     activity: str,
     goal: str,
 ) -> int:
-    """
-    Returns daily calorie target (kcal, int).
-    """
     prompt = (
         f"사용자 정보: 성별={gender}, 나이={age}세, 키={height}cm, "
         f"체중={weight}kg, 활동량={activity}, 목표={goal}.\n"
@@ -45,7 +41,50 @@ async def calculate_daily_calories(
     try:
         return int(text)
     except ValueError:
-        return 2000  # fallback
+        return 2000
+
+
+# ── 자연어 식사 입력 파싱 ─────────────────────────────
+async def parse_meal_input(raw_text: str) -> dict:
+    """
+    유저의 자연어 입력에서 날짜 / 식사 종류 / 음식명을 추출.
+
+    입력 예시:
+      "어제 저녁에 치킨 먹었어"
+      "오늘 점심 삼겹살이랑 된장찌개"
+      "그저께 아침에 시리얼"
+      "라면 한 그릇" (날짜/종류 생략 시 오늘/식사로 처리)
+
+    Returns:
+      {
+        "days_ago": 0 | 1 | 2,       # 0=오늘, 1=어제, 2=그저께
+        "meal_type": "아침"|"점심"|"저녁"|"간식",
+        "food_name": "음식명 문자열"
+      }
+    """
+    prompt = (
+        "다음 문장에서 날짜, 식사 종류, 음식명을 추출해줘.\n\n"
+        f"입력: \"{raw_text}\"\n\n"
+        "규칙:\n"
+        "- days_ago: 오늘=0, 어제/1일전=1, 그저께/그제/2일전=2 (언급 없으면 0)\n"
+        "- meal_type: 아침/점심/저녁/간식 중 하나 (언급 없으면 '식사')\n"
+        "- food_name: 음식명만 깔끔하게 추출 (조사/어미 제거)\n\n"
+        "JSON으로만 답해줘 (다른 텍스트 없이):\n"
+        '{"days_ago": 숫자, "meal_type": "문자열", "food_name": "문자열"}'
+    )
+    resp = await _client.chat.completions.create(
+        model=MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=60,
+        temperature=0,
+        response_format={"type": "json_object"},
+    )
+    data = json.loads(resp.choices[0].message.content)
+    return {
+        "days_ago": int(data.get("days_ago", 0)),
+        "meal_type": str(data.get("meal_type", "식사")),
+        "food_name": str(data.get("food_name", raw_text)),
+    }
 
 
 # ── 텍스트 식사 분석 ───────────────────────────────────
@@ -66,53 +105,13 @@ async def analyze_meal_text(food_name: str) -> dict:
         temperature=0,
         response_format={"type": "json_object"},
     )
-    import json
     data = json.loads(resp.choices[0].message.content)
     return {
         "calories": int(data.get("calories", 0)),
-        "protein": float(data.get("protein", 0)),
-        "carbs": float(data.get("carbs", 0)),
-        "fat": float(data.get("fat", 0)),
-        "fiber": float(data.get("fiber", 0)),
-    }
-
-
-# ── 사진 식사 분석 (Vision) ────────────────────────────
-async def analyze_meal_image(image_url: str) -> dict:
-    """
-    image_url: Discord CDN URL 또는 base64 data URL
-    Returns {food_name, calories, protein, carbs, fat, fiber}
-    """
-    resp = await _client.chat.completions.create(
-        model=MODEL,
-        messages=[{
-            "role": "user",
-            "content": [
-                {
-                    "type": "text",
-                    "text": (
-                        "이 음식 사진의 영양 정보를 추정해줘.\n"
-                        "JSON 형식으로만 답해줘 (다른 텍스트 없이):\n"
-                        '{"food_name": "음식명", "calories": 정수, '
-                        '"protein": 소수, "carbs": 소수, "fat": 소수, "fiber": 소수}'
-                    ),
-                },
-                {"type": "image_url", "image_url": {"url": image_url}},
-            ],
-        }],
-        max_tokens=120,
-        temperature=0,
-        response_format={"type": "json_object"},
-    )
-    import json
-    data = json.loads(resp.choices[0].message.content)
-    return {
-        "food_name": data.get("food_name", "알 수 없는 음식"),
-        "calories": int(data.get("calories", 0)),
-        "protein": float(data.get("protein", 0)),
-        "carbs": float(data.get("carbs", 0)),
-        "fat": float(data.get("fat", 0)),
-        "fiber": float(data.get("fiber", 0)),
+        "protein":  float(data.get("protein", 0)),
+        "carbs":    float(data.get("carbs", 0)),
+        "fat":      float(data.get("fat", 0)),
+        "fiber":    float(data.get("fiber", 0)),
     }
 
 
@@ -139,12 +138,8 @@ async def generate_comment(
     recent_meals: str,
     weather_info: dict | None = None,
 ) -> str:
-    """
-    context: 대사 맥락 (예: "식사 후", "날씨 반응", "오늘 요약")
-    Returns: 다마고치 한마디 (1~2문장)
-    """
     weather_text = weather_info.get("weather", "알 수 없음") if weather_info else "알 수 없음"
-    temp_text = weather_info.get("temp", "?") if weather_info else "?"
+    temp_text    = weather_info.get("temp", "?") if weather_info else "?"
 
     system = _SYSTEM_TEMPLATE.format(
         tamagotchi_name=user.get("tamagotchi_name", "타마"),
@@ -156,12 +151,11 @@ async def generate_comment(
         weather=weather_text,
         temp=temp_text,
     )
-
     resp = await _client.chat.completions.create(
         model=MODEL,
         messages=[
             {"role": "system", "content": system},
-            {"role": "user", "content": context},
+            {"role": "user",   "content": context},
         ],
         max_tokens=80,
         temperature=0.8,
