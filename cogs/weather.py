@@ -5,8 +5,9 @@ cogs/weather.py — 날씨 연동
   - 기상청 공공데이터 API (초단기실황) + 에어코리아 API (미세먼지)
   - DB Weather_Log 저장
   - 쓰레드에 날씨 알림 메시지 전송
-  - 이미지 선택 로직 실행 → Embed 교체
+  - Embed 이미지 교체
   - !weather 명령어로 관리자 즉시 갱신 가능
+  - 매 10분마다 새 유저 스케줄러 자동 등록 체크
 """
 import os
 import aiohttp
@@ -14,6 +15,7 @@ import discord
 from discord.ext import commands
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 from datetime import datetime
 from dotenv import load_dotenv
 from utils.db import (
@@ -58,8 +60,6 @@ def _find_grid(city: str) -> tuple[int, int]:
             return CITY_GRID[key]
     return CITY_GRID["서울"]
 
-
-# ── 미세먼지 등급 ─────────────────────────────────────────
 def _pm_grade(pm10: int, pm25: int) -> str:
     if pm10 > 150 or pm25 > 75:
         return "매우나쁨 😷"
@@ -68,6 +68,19 @@ def _pm_grade(pm10: int, pm25: int) -> str:
     if pm10 > 30 or pm25 > 15:
         return "보통 😐"
     return "좋음 😊"
+
+def _weather_icon(weather: str, temp: float) -> str:
+    if "눈" in weather:
+        return "❄️"
+    if "비" in weather:
+        return "🌧️"
+    if "흐림" in weather or "구름" in weather:
+        return "☁️"
+    if temp >= 26:
+        return "☀️🥵"
+    if temp <= 5:
+        return "🥶"
+    return "☀️"
 
 
 # ── 기상청 초단기실황 API ────────────────────────────────
@@ -100,18 +113,12 @@ async def fetch_weather(nx: int, ny: int) -> dict:
         sky  = int(result.get("SKY", 1)) if "SKY" in result else 1
         temp = float(result.get("T1H", 15))
 
-        if pty in (1, 5):
-            weather = "비"
-        elif pty in (2, 6):
-            weather = "비/눈"
-        elif pty in (3, 7):
-            weather = "눈"
-        elif sky == 4:
-            weather = "흐림"
-        elif sky == 3:
-            weather = "구름많음"
-        else:
-            weather = "맑음"
+        if pty in (1, 5):   weather = "비"
+        elif pty in (2, 6): weather = "비/눈"
+        elif pty in (3, 7): weather = "눈"
+        elif sky == 4:      weather = "흐림"
+        elif sky == 3:      weather = "구름많음"
+        else:               weather = "맑음"
 
         return {"weather": weather, "temp": temp}
 
@@ -135,7 +142,6 @@ async def fetch_air(city: str) -> dict:
             sido = city_map[key]
             break
 
-    # 아산, 천안 → 충남
     if city in ("아산", "천안", "공주", "논산", "보령"):
         sido = "충남"
 
@@ -167,21 +173,6 @@ async def fetch_air(city: str) -> dict:
     return {"pm10": 0, "pm25": 0}
 
 
-# ── 날씨 아이콘 ───────────────────────────────────────────
-def _weather_icon(weather: str, temp: float) -> str:
-    if "눈" in weather:
-        return "❄️"
-    if "비" in weather:
-        return "🌧️"
-    if "흐림" in weather or "구름" in weather:
-        return "☁️"
-    if temp >= 26:
-        return "☀️🥵"
-    if temp <= 5:
-        return "🥶"
-    return "☀️"
-
-
 # ── 유저 1명 날씨 업데이트 ───────────────────────────────
 async def update_weather_for_user(bot: commands.Bot, user: dict):
     user_id   = str(user.get("user_id", ""))
@@ -191,7 +182,6 @@ async def update_weather_for_user(bot: commands.Bot, user: dict):
     if not thread_id:
         return
 
-    # 쓰레드 조회
     thread = None
     for guild in bot.guilds:
         thread = guild.get_thread(int(thread_id))
@@ -207,18 +197,16 @@ async def update_weather_for_user(bot: commands.Bot, user: dict):
 
     nx, ny = _find_grid(city)
 
-    # API 호출
     weather_data = await fetch_weather(nx, ny)
     air_data     = await fetch_air(city)
 
-    weather = weather_data.get("weather", "맑음")
-    temp    = weather_data.get("temp", 15.0)
-    pm10    = air_data.get("pm10", 0)
-    pm25    = air_data.get("pm25", 0)
-    icon    = _weather_icon(weather, temp)
+    weather  = weather_data.get("weather", "맑음")
+    temp     = weather_data.get("temp", 15.0)
+    pm10     = air_data.get("pm10", 0)
+    pm25     = air_data.get("pm25", 0)
+    icon     = _weather_icon(weather, temp)
     pm_grade = _pm_grade(pm10, pm25)
 
-    # GPT 대사 생성
     comment = await generate_comment(
         context=(
             f"오늘 날씨를 보고 사용자에게 한마디 해줘.\n"
@@ -231,7 +219,6 @@ async def update_weather_for_user(bot: commands.Bot, user: dict):
         weather_info={"weather": weather, "temp": temp},
     )
 
-    # DB 저장
     create_weather_log(
         user_id=user_id,
         weather=weather,
@@ -242,7 +229,6 @@ async def update_weather_for_user(bot: commands.Bot, user: dict):
         gpt_comment=comment,
     )
 
-    # 쓰레드에 날씨 알림 메시지 전송
     tama_name = user.get("tamagotchi_name", "타마")
     weather_embed = discord.Embed(
         title=f"{icon} 오늘의 날씨 — {city}",
@@ -266,7 +252,6 @@ async def update_weather_for_user(bot: commands.Bot, user: dict):
     weather_embed.set_footer(text="좋은 아침이야! 오늘도 파이팅 🌱")
     await thread.send(embed=weather_embed)
 
-    # Embed 이미지 교체
     await create_or_update_embed(
         thread, user, tama, comment,
         weather={"weather": weather, "temp": temp, "pm10": pm10, "pm25": pm25},
@@ -282,34 +267,53 @@ class WeatherCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.scheduler = AsyncIOScheduler()
+        self._registered_jobs: set[str] = set()
         self._setup_jobs()
+        # 매 10분마다 새 유저 스케줄러 자동 등록 체크
+        self.scheduler.add_job(
+            self._check_new_users,
+            IntervalTrigger(minutes=10),
+            id="check_new_users",
+            replace_existing=True,
+        )
         self.scheduler.start()
         print("[날씨 스케줄러] 시작 완료")
 
+    def _register_job_for_wake_time(self, wake_time: str):
+        """wake_time 기준으로 Job 등록 (중복 방지)"""
+        try:
+            hour, minute = map(int, wake_time.split(":"))
+        except Exception:
+            hour, minute = 7, 0
+
+        job_id = f"weather_{hour:02d}{minute:02d}"
+        if job_id not in self._registered_jobs:
+            self.scheduler.add_job(
+                self._run_weather_update,
+                CronTrigger(hour=hour, minute=minute),
+                id=job_id,
+                replace_existing=True,
+                args=[hour, minute],
+            )
+            self._registered_jobs.add(job_id)
+            print(f"[날씨 스케줄러] {hour:02d}:{minute:02d} Job 등록")
+
     def _setup_jobs(self):
+        """봇 시작 시 현재 유저들의 wake_time Job 등록"""
         users = get_all_users()
-        registered = set()
-
         for user in users:
-            wake_time = user.get("wake_time", "07:00")
-            try:
-                hour, minute = map(int, wake_time.split(":"))
-            except Exception:
-                hour, minute = 7, 0
+            wake_time = user.get("wake_time") or "07:00"
+            self._register_job_for_wake_time(wake_time)
 
-            job_id = f"weather_{hour:02d}{minute:02d}"
-            if job_id not in registered:
-                self.scheduler.add_job(
-                    self._run_weather_update,
-                    CronTrigger(hour=hour, minute=minute),
-                    id=job_id,
-                    replace_existing=True,
-                    args=[hour, minute],
-                )
-                registered.add(job_id)
-                print(f"[날씨 스케줄러] {hour:02d}:{minute:02d} Job 등록")
+    async def _check_new_users(self):
+        """10분마다 새 유저의 wake_time Job 자동 등록"""
+        users = get_all_users()
+        for user in users:
+            wake_time = user.get("wake_time") or "07:00"
+            self._register_job_for_wake_time(wake_time)
 
     async def _run_weather_update(self, hour: int, minute: int):
+        """해당 wake_time 유저들 날씨 업데이트"""
         wake_time = f"{hour:02d}:{minute:02d}"
         users = get_all_users()
         for user in users:
@@ -320,6 +324,10 @@ class WeatherCog(commands.Cog):
                     print(f"[날씨 오류] {user.get('user_id')}: {e}")
                     import traceback
                     traceback.print_exc()
+
+    def register_user_job(self, wake_time: str):
+        """온보딩 완료 후 외부에서 즉시 Job 등록 호출용"""
+        self._register_job_for_wake_time(wake_time)
 
     @commands.command(name="weather")
     @commands.has_permissions(administrator=True)

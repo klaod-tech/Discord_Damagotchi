@@ -18,7 +18,7 @@ from utils.embed import create_or_update_embed
 TAMAGOTCHI_CHANNEL_ID = int(os.getenv("TAMAGOTCHI_CHANNEL_ID", "0"))
 
 # ══════════════════════════════════════════════════════
-# Modal: 온보딩 (1단계로 통합)
+# Modal: 온보딩 (1단계 통합)
 # ══════════════════════════════════════════════════════
 class OnboardingModal(discord.ui.Modal, title="다마고치 시작하기"):
     tama_name = discord.ui.TextInput(
@@ -28,7 +28,7 @@ class OnboardingModal(discord.ui.Modal, title="다마고치 시작하기"):
     )
     city = discord.ui.TextInput(
         label="거주 도시",
-        placeholder="예: 서울, 부산, 대구",
+        placeholder="예: 서울, 부산, 아산",
         max_length=20,
     )
     weight_info = discord.ui.TextInput(
@@ -41,32 +41,41 @@ class OnboardingModal(discord.ui.Modal, title="다마고치 시작하기"):
         placeholder="예: 남/25/175",
         max_length=15,
     )
-    meal_times = discord.ui.TextInput(
-        label="식사 알림 시간 (아침,점심,저녁 HH:MM)",
-        placeholder="예: 08:00,12:30,18:30",
-        max_length=20,
+    schedule_info = discord.ui.TextInput(
+        label="기상시간 / 식사알림 (HH:MM / 아침,점심,저녁)",
+        placeholder="예: 09:30 / 08:00,12:00,18:00",
+        max_length=30,
     )
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True, thinking=True)
         try:
             # 체중 파싱
-            weights = self.weight_info.value.strip().split("/")
+            weights     = self.weight_info.value.strip().split("/")
             init_weight = float(weights[0].strip())
             goal_weight = float(weights[1].strip())
 
             # 신체정보 파싱
-            body = self.body_info.value.strip().split("/")
+            body   = self.body_info.value.strip().split("/")
             gender = body[0].strip()
-            age = int(body[1].strip())
+            age    = int(body[1].strip())
             height = float(body[2].strip())
 
-            # 식사 시간 파싱
-            times = [t.strip() for t in self.meal_times.value.split(",")]
+            # 기상시간 + 식사알림 파싱
+            schedule_raw = self.schedule_info.value.strip()
+            if "/" in schedule_raw:
+                wake_raw, meals_raw = schedule_raw.split("/", 1)
+            else:
+                wake_raw  = "07:00"
+                meals_raw = schedule_raw
+
+            wake_time = wake_raw.strip() or "07:00"
+            times     = [t.strip() for t in meals_raw.strip().split(",")]
             breakfast = times[0] if len(times) > 0 else "08:00"
             lunch     = times[1] if len(times) > 1 else "12:00"
             dinner    = times[2] if len(times) > 2 else "18:00"
 
+            # GPT 권장 칼로리 계산
             daily_cal = await calculate_daily_calories(
                 gender=gender,
                 age=age,
@@ -76,20 +85,27 @@ class OnboardingModal(discord.ui.Modal, title="다마고치 시작하기"):
                 goal="체중 감량" if goal_weight < init_weight else "체중 유지",
             )
 
-            user_id = str(interaction.user.id)
+            user_id   = str(interaction.user.id)
             user_data = {
                 "tamagotchi_name": self.tama_name.value.strip(),
-                "city": self.city.value.strip(),
-                "wake_time": "07:00",
-                "init_weight": init_weight,
-                "goal_weight": goal_weight,
+                "city":            self.city.value.strip(),
+                "wake_time":       wake_time,
+                "init_weight":     init_weight,
+                "goal_weight":     goal_weight,
                 "daily_cal_target": daily_cal,
-                "breakfast_time": breakfast,
-                "lunch_time": lunch,
-                "dinner_time": dinner,
+                "breakfast_time":  breakfast,
+                "lunch_time":      lunch,
+                "dinner_time":     dinner,
             }
+
             create_user(user_id, user_data)
             create_tamagotchi(user_id)
+
+            # 날씨 스케줄러에 wake_time 자동 등록
+            weather_cog = interaction.client.cogs.get("WeatherCog")
+            if weather_cog:
+                weather_cog.register_user_job(wake_time)
+                print(f"[온보딩] {user_id} 날씨 스케줄러 등록 — wake_time: {wake_time}")
 
             # 전용 쓰레드 생성
             channel = interaction.guild.get_channel(TAMAGOTCHI_CHANNEL_ID)
@@ -106,11 +122,13 @@ class OnboardingModal(discord.ui.Modal, title="다마고치 시작하기"):
             await thread.send(
                 f"안녕, {interaction.user.mention}! 🥚\n"
                 f"나는 **{self.tama_name.value.strip()}**야. 잘 부탁해!\n"
-                f"권장 칼로리: **{daily_cal} kcal/일**"
+                f"권장 칼로리: **{daily_cal} kcal/일**\n"
+                f"날씨 알림: 매일 **{wake_time}**에 보내줄게!"
             )
 
-            user = get_user(user_id)
-            tama = get_tamagotchi(user_id)
+            # 메인 Embed 생성
+            user    = get_user(user_id)
+            tama    = get_tamagotchi(user_id)
             comment = await generate_comment(
                 context="처음 만났을 때 인사",
                 user=user,
@@ -121,7 +139,8 @@ class OnboardingModal(discord.ui.Modal, title="다마고치 시작하기"):
             await create_or_update_embed(thread, user, tama, comment)
 
             await interaction.followup.send(
-                f"✅ 설정 완료! {thread.mention} 에서 확인해봐!",
+                f"✅ 설정 완료! {thread.mention} 에서 확인해봐!\n"
+                f"기상 시간 **{wake_time}**에 날씨 알림을 보내줄게 🌤️",
                 ephemeral=True,
             )
 
@@ -132,6 +151,7 @@ class OnboardingModal(discord.ui.Modal, title="다마고치 시작하기"):
             await interaction.followup.send(
                 f"❌ 오류가 발생했어: {e}", ephemeral=True
             )
+
 
 # ══════════════════════════════════════════════════════
 # 시작하기 버튼 View
@@ -150,10 +170,10 @@ class StartView(discord.ui.View):
         interaction: discord.Interaction,
         button: discord.ui.Button,
     ):
-        user_id = str(interaction.user.id)
+        user_id  = str(interaction.user.id)
         existing = get_user(user_id)
         if existing and existing.get("thread_id"):
-            guild = interaction.guild
+            guild  = interaction.guild
             thread = guild.get_thread(int(existing["thread_id"]))
             if thread:
                 await interaction.response.send_message(
@@ -162,6 +182,7 @@ class StartView(discord.ui.View):
                 )
                 return
         await interaction.response.send_modal(OnboardingModal())
+
 
 # ══════════════════════════════════════════════════════
 # Cog
