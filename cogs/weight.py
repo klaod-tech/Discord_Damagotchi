@@ -25,42 +25,37 @@ from utils.embed import create_or_update_embed
 
 def save_weight_log(user_id: str, weight: float) -> None:
     """weight_log 테이블에 체중 기록 저장"""
-    from utils.db import get_connection
-    conn = get_connection()
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO weight_log (user_id, weight, recorded_at)
-                VALUES (%s, %s, NOW())
-                """,
-                (user_id, weight),
-            )
-        conn.commit()
-    finally:
-        conn.close()
+    from utils.db import get_conn
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO weight_log (user_id, weight, recorded_at) VALUES (%s, %s, NOW())",
+        (user_id, weight),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
 
 
 def get_weight_history(user_id: str, limit: int = 7) -> list[dict]:
     """최근 체중 기록 조회"""
-    from utils.db import get_connection
-    conn = get_connection()
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT weight, recorded_at
-                FROM weight_log
-                WHERE user_id = %s
-                ORDER BY recorded_at DESC
-                LIMIT %s
-                """,
-                (user_id, limit),
-            )
-            rows = cur.fetchall()
-            return [{"weight": r[0], "recorded_at": r[1]} for r in rows]
-    finally:
-        conn.close()
+    from utils.db import get_conn
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT weight, recorded_at
+        FROM weight_log
+        WHERE user_id = %s
+        ORDER BY recorded_at DESC
+        LIMIT %s
+        """,
+        (user_id, limit),
+    )
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [{"weight": float(r["weight"]), "recorded_at": r["recorded_at"]} for r in rows]
 
 
 def get_latest_weight(user_id: str) -> float | None:

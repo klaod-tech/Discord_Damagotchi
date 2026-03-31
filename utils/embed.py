@@ -366,13 +366,49 @@ class MainView(discord.ui.View):
                 await interaction.followup.send("❌ 등록된 유저가 아니야!", ephemeral=True)
                 return
 
-            tama_name  = user.get("tamagotchi_name", "타마")
-            target_cal = user.get("daily_cal_target") or 2000
-            today_cal  = get_today_calories(user_id)
-            ratio      = min(today_cal / target_cal, 1.0) if target_cal > 0 else 0
-            filled     = int(ratio * 10)
-            bar        = "█" * filled + "░" * (10 - filled)
-            percent    = int(ratio * 100)
+            tama_name   = user.get("tamagotchi_name", "타마")
+            goal_weight = float(user.get("goal_weight") or 70)
+            init_weight = float(user.get("init_weight") or 76)
+            base_cal    = user.get("daily_cal_target") or 2000
+            today_cal   = get_today_calories(user_id)
+
+            # ✅ ML 체중 기반 목표 칼로리 동적 조율
+            weight_history = get_weight_history(user_id, limit=7)
+            current_weight = weight_history[0]["weight"] if weight_history else None
+            target_cal     = base_cal  # 기본값
+            weight_context = ""        # GPT 주입용
+
+            if current_weight and len(weight_history) >= 2:
+                prev_weight  = weight_history[1]["weight"]
+                weight_diff  = round(current_weight - prev_weight, 1)
+                diff_to_goal = round(current_weight - goal_weight, 1)
+
+                # 체중 증가 중 → 칼로리 목표 5% 감소
+                if weight_diff > 0.3:
+                    target_cal   = int(base_cal * 0.95)
+                    weight_context = (
+                        f"최근 체중이 {weight_diff}kg 늘었어 ({prev_weight}kg → {current_weight}kg). "
+                        f"'어제 너무 많이 먹어서 좀 찐 거 같지 않아?' 같은 느낌으로 살짝 걱정해줘."
+                    )
+                # 체중 감소 중 → 칼로리 목표 유지 or 5% 증가 (너무 적게 먹으면)
+                elif weight_diff < -0.3:
+                    target_cal   = int(base_cal * 1.05) if diff_to_goal > 2 else base_cal
+                    weight_context = (
+                        f"최근 체중이 {abs(weight_diff)}kg 줄었어 ({prev_weight}kg → {current_weight}kg). "
+                        f"'살이 조금씩 빠지고 있어!' 같은 느낌으로 신나게 칭찬해줘."
+                    )
+                # 체중 유지
+                else:
+                    weight_context = (
+                        f"현재 체중 {current_weight}kg, 목표까지 {diff_to_goal}kg 남았어. "
+                        f"꾸준히 유지하고 있다고 응원해줘."
+                    )
+
+            # 칼로리 바
+            ratio  = min(today_cal / target_cal, 1.0) if target_cal > 0 else 0
+            filled = int(ratio * 10)
+            bar    = "█" * filled + "░" * (10 - filled)
+            percent = int(ratio * 100)
 
             # 날씨 정보
             weather_log = get_latest_weather(user_id)
@@ -397,23 +433,53 @@ class MainView(discord.ui.View):
 
             today_str = date.today().strftime("%Y년 %m월 %d일")
 
-            # ✅ ML 패턴 분석 → GPT 다마고치 멘트 생성
-            pattern_result = analyze_eating_patterns(user_id, target_cal)
+            # ✅ ML 패턴 분석 + 체중 컨텍스트 → GPT 다마고치 멘트 생성
+            pattern_result  = analyze_eating_patterns(user_id, target_cal)
             pattern_context = pattern_result.get("gpt_context", "")
+            full_context    = "\n".join(filter(None, [pattern_context, weight_context]))
 
             ml_comment = await generate_comment(
                 context=(
                     f"오늘 일정을 확인하러 왔어. "
                     f"오늘 목표는 {target_cal}kcal인데 지금까지 {today_cal}kcal 먹었어. "
-                    f"날씨는 {weather_text}야. "
-                    f"짧고 귀엽게 오늘 하루 응원 한마디 해줘!"
+                    f"짧고 귀엽게 한마디 해줘!"
                 ),
                 user=user,
                 today_calories=today_cal,
                 recent_meals="",
                 weather_info=weather_log,
-                extra_context=pattern_context,  # ✅ ML 패턴 주입
+                extra_context=full_context,  # ✅ 패턴 + 체중 변화 주입
             )
+
+            # ✅ 체중 현황 필드 텍스트 생성
+            if current_weight:
+                w_total  = abs(init_weight - goal_weight)
+                w_done   = abs(init_weight - current_weight)
+                w_ratio  = min(w_done / w_total, 1.0) if w_total > 0 else 0
+                w_filled = int(w_ratio * 10)
+                w_bar    = "█" * w_filled + "░" * (10 - w_filled)
+                w_pct    = int(w_ratio * 100)
+                w_remain = round(max(current_weight - goal_weight, 0), 1)
+
+                if len(weight_history) >= 2:
+                    w_diff   = round(current_weight - weight_history[1]["weight"], 1)
+                    w_change = f"▲ {w_diff}kg" if w_diff > 0 else (f"▼ {abs(w_diff)}kg" if w_diff < 0 else "→ 유지")
+                else:
+                    w_change = "→ 첫 기록"
+
+                weight_text = (
+                    f"현재: **{current_weight}kg** ({w_change})\n"
+                    f"목표: **{goal_weight}kg** (남은 거리: {w_remain}kg)\n"
+                    f"`{w_bar}` {w_pct}%"
+                )
+            else:
+                weight_text = "아직 체중 기록이 없어요!\n[⚖️ 체중 기록] 버튼으로 입력해줘 🐣"
+
+            # ✅ 목표 칼로리 조율 여부 표시
+            if target_cal != base_cal:
+                cal_adjust = f" (체중 변화로 {'+' if target_cal > base_cal else ''}{target_cal - base_cal}kcal 조정)"
+            else:
+                cal_adjust = ""
 
             embed = discord.Embed(
                 title=f"📅 오늘 일정 — {today_str}",
@@ -421,7 +487,12 @@ class MainView(discord.ui.View):
             )
             embed.add_field(
                 name="🔥 목표 칼로리",
-                value=f"목표: `{target_cal}` kcal\n현재: `{today_cal}` kcal ({percent}%)\n`{bar}`",
+                value=f"목표: `{target_cal}` kcal{cal_adjust}\n현재: `{today_cal}` kcal ({percent}%)\n`{bar}`",
+                inline=False,
+            )
+            embed.add_field(
+                name="⚖️ 체중 현황",
+                value=weight_text,
                 inline=False,
             )
             embed.add_field(
@@ -434,7 +505,7 @@ class MainView(discord.ui.View):
                 value=weather_text,
                 inline=False,
             )
-            # ✅ ML 패턴이 녹아든 다마고치 멘트
+            # ✅ 패턴 + 체중 변화가 녹아든 다마고치 멘트
             embed.add_field(
                 name=f"🐣 {tama_name}의 한마디",
                 value=f"*{ml_comment}*",
