@@ -9,7 +9,7 @@
 1. **hp/hunger/mood 수치는 사용자에게 절대 직접 노출 금지** — 이미지+대사로만 간접 표현
 2. **날씨는 별도 알림 없음** — 기상 시간에 이미지 자동 교체로만 전달
 3. **칼로리/영양소 수치는 오늘 요약 버튼 클릭 시 Ephemeral로만 확인 가능**
-4. **파일명 소문자+언더스코어 고정** (hungry_cry.png O, HungryCry.PNG X)
+4. **파일명 소문자 고정** (eat.png O, Eat.PNG X)
 
 ---
 
@@ -68,8 +68,9 @@ TAMAGOTCHI_CHANNEL_ID  # #다마고치 채널 ID
 | v1.5 | 2026-03-28 | 기상청+에어코리아 API, 날씨 Embed 이미지 교체 |
 | v1.6 | 2026-03-29 | 오후 10시 칼로리 판정 스케줄러 |
 | v1.7 | 2026-03-31 | ML(pattern/ml/bridge), Vision 사진입력, 체중기록 |
-| v1.8 | 2026-04-02 | 이미지 파일명 정리, 문서 구조화 |
+| v1.8 | 2026-04-02 | 이미지 파일명 정리 (11종 확정), 문서 구조화 |
 | v1.9 | 2026-04-02 | 시간 설정 Select Menu 분리 (cogs/time_settings.py), 메인 Embed 버튼 6개 2행 재편 |
+| v2.0 | 2026-04-02 | P2 수정: gender/age/height DB 저장, settings.py 하드코딩 제거, psycopg2-binary requirements 추가, weight_log init_db 등록 |
 
 ---
 

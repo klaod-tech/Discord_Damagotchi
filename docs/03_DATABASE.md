@@ -20,6 +20,9 @@ init_weight      REAL NOT NULL         -- 초기 체중 kg
 goal_weight      REAL NOT NULL         -- 목표 체중 kg
 daily_cal_target INTEGER NOT NULL      -- Mifflin-St Jeor 공식으로 GPT 계산
 thread_id        TEXT NOT NULL         -- 유저 전용 쓰레드 ID
+gender           TEXT                  -- 성별 (남/여) — 칼로리 재계산용
+age              INTEGER               -- 나이 — 칼로리 재계산용
+height           REAL                  -- 키 cm — 칼로리 재계산용
 created_at       TIMESTAMP DEFAULT NOW()
 ```
 

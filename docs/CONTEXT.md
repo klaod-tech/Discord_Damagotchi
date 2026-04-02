@@ -1,5 +1,5 @@
 # AI 다마고치 — 프로젝트 컨텍스트 인덱스
-version: 1.8 | last_updated: 2026-04-02 | branch: develop
+version: 2.0 | last_updated: 2026-04-02 | branch: develop
 
 ---
 
@@ -41,8 +41,8 @@ version: 1.8 | last_updated: 2026-04-02 | branch: develop
 ```
 GitHub: https://github.com/klaod-tech/Discord_Damagotchi
 개발 브랜치: develop
-현재 버전: v1.8
-DB: Supabase (PostgreSQL, psycopg2)
+현재 버전: v2.0
+DB: Supabase (PostgreSQL, psycopg2-binary)
 AI: OpenAI GPT-4o
-버튼 5개: [🍽️ 식사 입력] [📊 오늘 요약] [📅 오늘 일정] [⚙️ 설정 변경] [⚖️ 체중 기록]
+버튼 6개 (2행): [🍽️ 식사 입력] [📊 오늘 요약] [📅 오늘 일정] / [⚙️ 설정 변경] [⏰ 시간 설정] [⚖️ 체중 기록]
 ```
