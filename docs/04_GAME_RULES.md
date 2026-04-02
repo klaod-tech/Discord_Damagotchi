@@ -52,45 +52,21 @@ EVENT_EFFECTS = {
 
 ---
 
-## 이미지 트리거 조건
+## 이미지 트리거 조건 (압축 버전)
 
-| 파일명 | 트리거 조건 |
-|--------|------------|
-| `goal_achieved.png` | 목표 체중 달성 |
-| `eating.png` | 식사 입력 직후 3분 이내 |
-| `overfed.png` | 오후 10시 총 칼로리 > daily_cal_target |
-| `underfed.png` | 오후 10시 총 칼로리 < daily_cal_target × 0.67 |
-| `hungry_cry.png` | hunger < 20 (식사 알림 +1시간 미입력) |
-| `hungry.png` | hunger < 40 (식사 알림 정각 미입력) |
-| `dusty.png` | PM10 > 80 OR PM2.5 > 35 |
-| `rainy.png` | 날씨 = 비/소나기 |
-| `snowy.png` | 날씨 = 눈 |
-| `hot.png` | 맑음 + 기온 ≥ 26°C |
-| `cold.png` | 맑음 + 기온 ≤ 5°C |
-| `sunny.png` | 맑음 + 15~25°C |
-| `cloudy.png` | 흐림/구름많음 |
-| `sick.png` | hp < 40 |
-| `tired.png` | mood < 40 |
-| `happy.png` | hp ≥ 70, hunger ≥ 70, mood ≥ 70 |
-| `normal.png` | 모든 수치 40~69 (기본값) |
+| 파일명 | 트리거 조건 | 우선순위 |
+|--------|------------|---------|
+| `cheer.png` | 목표 체중 달성 | 1 |
+| `eat.png` | 식사 입력 직후 3분 이내 | 2 |
+| `upset.png` | hunger < 40 (배고픔 통합) | 3 |
+| `wear mask.png` | PM10 > 80 OR PM2.5 > 35 | 4 |
+| `rainy.png` | 날씨 = 비/소나기 | 4 |
+| `snow.png` | 날씨 = 눈 | 4 |
+| `hot.png` | 기온 ≥ 26°C | 4 |
+| `warm.png` | 기온 ≤ 5°C (따뜻하게 입은 모습) | 4 |
+| `tired.png` | hp < 40 OR mood < 40 (sick+tired 통합) | 5 |
+| `smile.png` | hp ≥ 70, hunger ≥ 70, mood ≥ 70 | 5 |
+| `normal.png` | 기본값 (맑음/흐림 포함) | 5 |
 
----
-
-## 현재 images/ 폴더 상태
-
-| 실제 파일명 | 매핑 대상 | 상태 |
-|-------------|-----------|------|
-| `normal.png` | `normal.png` | ✅ |
-| `tired.png` | `tired.png` | ✅ |
-| `hot.png` | `hot.png` | ✅ |
-| `snow.png` | `snowy.png` | ⚠️ 이름 불일치 |
-| `rainy.png` | `rainy.png` | ✅ |
-| `eat.png` | `eating.png` | ⚠️ 이름 불일치 |
-| `smile.png` | `happy.png` (?) | ⚠️ 확인 필요 |
-| `warm.png` | `sunny.png` (?) | ⚠️ 확인 필요 |
-| `cheer.png` | ? | ⚠️ 확인 필요 |
-| `upset.png` | ? | ⚠️ 확인 필요 |
-| `wear mask.png` | `dusty.png` | ⚠️ 이름 불일치 (공백 포함) |
-
-> **미구현 이미지**: hungry.png, hungry_cry.png, overfed.png, underfed.png, sick.png, cold.png, cloudy.png, goal_achieved.png  
-> **담당**: 이미지 파일명 최종 결정 후 image.py 트리거 조건과 맞춰야 함
+> **sunny(맑음 15~25°C), cloudy(흐림)** → 전용 이미지 없음, 5순위 감정 상태로 자연스럽게 넘어감  
+> **overfed/underfed** → 전용 이미지 없음, 동일하게 감정 상태로 넘어감
