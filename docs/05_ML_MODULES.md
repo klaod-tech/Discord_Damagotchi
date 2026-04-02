@@ -42,7 +42,7 @@
 **개인화 모델**: Ridge Regression vs Random Forest (교차검증으로 자동 선택)
 - 저장 위치: `models/calorie_model_{user_id}.pkl`
 - 활성화: 30개 이상 식사 기록 누적 시
-- 재학습: 매주 일요일 03:00 (APScheduler — 미구현)
+- 재학습: 매주 일요일 03:00 (APScheduler — `cogs/scheduler.py` `_weekly_ml_retrain()`)
 
 **사용 위치**: `utils/gpt_ml_bridge.py` → `get_corrected_calories()`
 

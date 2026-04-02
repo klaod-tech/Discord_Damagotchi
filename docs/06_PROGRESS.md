@@ -1,4 +1,4 @@
-# 진행 상황 (v2.5 기준 — 2026-04-03)
+# 진행 상황 (v2.6 기준 — 2026-04-03)
 
 ## 구현 완료
 
@@ -18,7 +18,7 @@
 | `cogs/weather.py` | 기상청+에어코리아 API, wake_time 기반 스케줄러 | ✅ 완료 |
 | `cogs/settings.py` | 설정 변경 Modal (이름/도시/목표체중), 칼로리 재계산 시 DB 값 사용 | ✅ 완료 |
 | `cogs/weight.py` | 체중 기록, 달성률 바, 목표 달성 판정 | ✅ 완료 |
-| `cogs/scheduler.py` | 오후 10시 칼로리 판정, 매시간 hunger 감소, 유저별 식사 알림 3단계 Job | ✅ 완료 |
+| `cogs/scheduler.py` | 오후 10시 칼로리 판정, 매시간 hunger 감소, 유저별 식사 알림 3단계 Job, 매주 일요일 03:00 ML 재학습 | ✅ 완료 |
 | `bot.py` | 봇 진입점, 8개 cog 로드, on_ready 시 전체 유저 식사 알림 Job 등록, 커맨드 실행 로깅 | ✅ 완료 |
 | `requirements.txt` | psycopg2-binary 추가 | ✅ 완료 |
 
@@ -26,9 +26,10 @@
 
 ## 미구현
 
-### P1 — ML 재학습 스케줄러 미등록
-- `utils/ml.py`의 `retrain_all_users()`가 주 1회 APScheduler로 실행되어야 하나 아직 등록 안 됨
-- **추가 필요**: `cogs/scheduler.py`에 매주 일요일 03:00 Job 추가
+### P1 — 호스팅 배포
+- Railway / Render / VPS 중 선택
+- `.env` → 플랫폼 시크릿 이전
+- `develop` → `main` 머지 후 배포
 
 ---
 
@@ -49,6 +50,7 @@
 | 식사 입력 사진 경로 버튼 미연결 | MealInputSelectView 추가, 버튼 클릭 → 60초 대기 → on_message 즉시 분석 | v2.5 |
 | "남은 거리" 용어 부자연스러움 | embed.py, weight.py → "남은 몸무게"로 수정 | v2.5 |
 | 오늘 일정 날씨 지역 미표시 | 날씨 텍스트에 📍 도시명 추가 | v2.5 |
+| ML 재학습 스케줄러 미등록 | scheduler.py에 매주 일요일 03:00 _weekly_ml_retrain() Job 등록 | v2.6 |
 | psycopg2-binary requirements 누락 | requirements.txt에 추가 | v2.0 |
 | weight_log 테이블 init_db 미등록 | init_db()에 CREATE TABLE 추가 | v2.0 |
 | image.py 파일명 불일치 | 실제 이미지 파일명 기준으로 전면 수정 | v1.8 |
@@ -58,10 +60,7 @@
 ## 다음 작업 우선순위
 
 ```
-[P1] ML 재학습 스케줄러 등록
-  → cogs/scheduler.py에 매주 일요일 03:00 retrain_all_users() Job 추가
-
-[P2] 호스팅 배포
+[P1] 호스팅 배포
   → Railway / Render / VPS 중 선택
   → .env → 플랫폼 시크릿 이전
   → develop → main 머지 후 배포

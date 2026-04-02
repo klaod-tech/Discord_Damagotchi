@@ -19,6 +19,7 @@ from utils.db import (
 )
 from utils.embed import _send_daily_analysis, create_or_update_embed
 from utils.gpt import generate_comment
+from utils.ml import retrain_all_users
 
 
 MEAL_TYPES = [
@@ -53,6 +54,13 @@ class SchedulerCog(commands.Cog):
             self._hourly_hunger_decay,
             CronTrigger(minute=0),
             id="hourly_hunger_decay",
+            replace_existing=True,
+        )
+        # 매주 일요일 03:00 — ML 칼로리 모델 재학습
+        self.scheduler.add_job(
+            self._weekly_ml_retrain,
+            CronTrigger(day_of_week="sun", hour=3, minute=0),
+            id="weekly_ml_retrain",
             replace_existing=True,
         )
 
@@ -245,6 +253,21 @@ class SchedulerCog(commands.Cog):
                 print(f"[스케줄러 오류] user_id={user.get('user_id')}: {e}")
                 import traceback
                 traceback.print_exc()
+
+    # ──────────────────────────────────────────────
+    # ML 재학습
+    # ──────────────────────────────────────────────
+
+    async def _weekly_ml_retrain(self):
+        """매주 일요일 03:00 — 전체 유저 칼로리 보정 모델 재학습"""
+        print("[스케줄러] ML 재학습 시작")
+        try:
+            retrain_all_users()
+            print("[스케줄러] ML 재학습 완료")
+        except Exception as e:
+            print(f"[스케줄러] ML 재학습 오류: {e}")
+            import traceback
+            traceback.print_exc()
 
     # ──────────────────────────────────────────────
     # 헬퍼
