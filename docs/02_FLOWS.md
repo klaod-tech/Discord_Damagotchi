@@ -127,16 +127,33 @@ APScheduler → 유저별 wake_time 도달
 
 ---
 
+## 시간 설정 흐름
+
+```
+[⏰ 시간 설정] 클릭 (메인 Embed) 또는 온보딩 완료 후 자동 유도
+  → TimeStep1View (Ephemeral)
+    Select × 4: 기상 시(0~23), 기상 분(00/30), 아침 시(0~23), 아침 분(00/30)
+    [다음 →] 버튼 클릭
+  → TimeStep2View (같은 메시지 edit)
+    Select × 4: 점심 시(0~23), 점심 분(00/30), 저녁 시(0~23), 저녁 분(00/30)
+    [✅ 저장] 버튼 클릭
+      → DB update_user(wake_time, breakfast_time, lunch_time, dinner_time)
+      → WeatherCog 스케줄러 재등록 (새 wake_time 적용)
+      → Ephemeral: "⏰ 시간 설정 완료!" (설정값 요약)
+```
+
+---
+
 ## 설정 변경 흐름
 
 ```
 [⚙️ 설정 변경] 클릭
   → SettingsModal (현재 값이 미리 채워짐)
-    fields: 다마고치 이름, 거주 도시, 기상시간/식사알림, 목표 체중
+    fields: 다마고치 이름, 거주 도시, 목표 체중
+    ※ 시간 설정은 [⏰ 시간 설정] 버튼에서 별도 진행
   → 변경 감지 후:
     - 이름 변경 → DB + 쓰레드 이름 변경
     - 도시 변경 → DB 업데이트
-    - 기상 시간 변경 → DB + WeatherCog 스케줄러 재등록
     - 목표 체중 변경 → DB + GPT 권장 칼로리 재계산
 ```
 

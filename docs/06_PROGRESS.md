@@ -1,4 +1,4 @@
-# 진행 상황 (v1.8 기준 — 2026-04-02)
+# 진행 상황 (v1.9 기준 — 2026-04-02)
 
 ## 구현 완료
 
@@ -6,19 +6,20 @@
 |------|------|------|
 | `utils/db.py` | Supabase CRUD (users/tamagotchi/meals/weather_log/weight_log) | ✅ 완료 |
 | `utils/gpt.py` | GPT-4o 래퍼 (칼로리 계산, 식사 분석, 자연어 파싱, 대사 생성) | ✅ 완료 |
-| `utils/image.py` | 이미지 선택 로직 (우선순위 5단계) | ✅ 완료 |
-| `utils/embed.py` | 메인 Embed + 5개 버튼 + MealInputModal + _send_daily_analysis | ✅ 완료 |
+| `utils/image.py` | 이미지 선택 로직 (우선순위 5단계, 11종 이미지) | ✅ 완료 |
+| `utils/embed.py` | 메인 Embed + 6개 버튼 (2행) + MealInputModal + _send_daily_analysis | ✅ 완료 |
 | `utils/ml.py` | 칼로리 보정 모델 (양 표현 즉시 + Ridge/RF 개인화) | ✅ 완료 |
 | `utils/pattern.py` | 식습관 패턴 분석 (5가지 패턴 탐지) | ✅ 완료 |
 | `utils/gpt_ml_bridge.py` | ML 결과 → GPT 주입 브릿지 | ✅ 완료 |
-| `cogs/onboarding.py` | 1단계 Modal, 쓰레드 생성, 첫 Embed 전송 | ✅ 완료 |
+| `cogs/onboarding.py` | 4필드 Modal, 쓰레드 생성, 첫 Embed 전송, TimeStep1View 유도 | ✅ 완료 |
+| `cogs/time_settings.py` | Select Menu 2단계 시간 설정 (TimeStep1View + TimeStep2View) | ✅ 완료 |
 | `cogs/meal.py` | 사진 입력 (on_message → GPT Vision → DB 저장) | ✅ 완료 |
 | `cogs/summary.py` | 오늘 요약 (칼로리/탄단지/끼니별/GPT 코멘트) | ✅ 완료 |
 | `cogs/weather.py` | 기상청+에어코리아 API, wake_time 기반 스케줄러 | ✅ 완료 |
-| `cogs/settings.py` | 설정 변경 Modal (이름/도시/시간/목표체중) | ✅ 완료 |
+| `cogs/settings.py` | 설정 변경 Modal (이름/도시/목표체중) | ✅ 완료 |
 | `cogs/weight.py` | 체중 기록, 달성률 바, 목표 달성 판정 | ✅ 완료 |
 | `cogs/scheduler.py` | 오후 10시 칼로리 자동 판정 | ✅ 완료 |
-| `bot.py` | 봇 진입점, 7개 cog 로드, setup/소환 명령어 | ✅ 완료 |
+| `bot.py` | 봇 진입점, 8개 cog 로드, setup/소환 명령어 | ✅ 완료 |
 
 ---
 
