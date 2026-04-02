@@ -144,10 +144,12 @@ APScheduler → 유저별 wake_time 도달
 ```
 [⏰ 시간 설정] 클릭 (메인 Embed) 또는 온보딩 완료 후 자동 유도
   → TimeStep1View (Ephemeral)
-    Select × 4: 기상 시(0~23), 기상 분(00/30), 아침 시(0~23), 아침 분(00/30)
+    🌅 기상 시간 — 시(0~23) / 분(00~50, 10분 단위)
+    🍳 아침 알림 — 시(0~23) / 분(00~50, 10분 단위)
     [다음 →] 버튼 클릭
   → TimeStep2View (같은 메시지 edit)
-    Select × 4: 점심 시(0~23), 점심 분(00/30), 저녁 시(0~23), 저녁 분(00/30)
+    🌞 점심 알림 — 시(0~23) / 분(00~50, 10분 단위)
+    🌙 저녁 알림 — 시(0~23) / 분(00~50, 10분 단위)
     [✅ 저장] 버튼 클릭
       → DB update_user(wake_time, breakfast_time, lunch_time, dinner_time)
       → WeatherCog 스케줄러 재등록 (새 wake_time 적용)

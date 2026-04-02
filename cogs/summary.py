@@ -102,8 +102,6 @@ async def send_summary(interaction: discord.Interaction):
         value=f"*{comment}*",
         inline=False,
     )
-    embed.set_footer(text="이 메시지는 본인에게만 보여요 👀")
-
     await interaction.followup.send(embed=embed, ephemeral=True)
 
 

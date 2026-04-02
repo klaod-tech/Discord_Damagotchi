@@ -560,7 +560,9 @@ class MainView(discord.ui.View):
         print(f"[time_settings_button] 클릭 — user: {interaction.user}")
         from cogs.time_settings import TimeStep1View
         await interaction.response.send_message(
-            "⏰ 시간 설정을 시작할게!\n기상 시간과 아침 알림 시간을 설정해줘.",
+            "⏰ **시간 설정** — 1단계\n\n"
+            "🌅 **기상 시간** — 시 / 분\n"
+            "🍳 **아침 알림** — 시 / 분",
             view=TimeStep1View(user_id=str(interaction.user.id)),
             ephemeral=True,
         )

@@ -24,8 +24,8 @@ def _hour_options(default: int = 0) -> list[discord.SelectOption]:
 
 def _minute_options(default: int = 0) -> list[discord.SelectOption]:
     return [
-        discord.SelectOption(label="00분", value="0",  default=(default == 0)),
-        discord.SelectOption(label="30분", value="30", default=(default == 30)),
+        discord.SelectOption(label=f"{m:02d}분", value=str(m), default=(default == m))
+        for m in range(0, 60, 10)
     ]
 
 
@@ -44,7 +44,7 @@ class TimeStep1View(discord.ui.View):
         self.breakfast_minute= 0
 
         wake_h = discord.ui.Select(
-            placeholder="🌅 기상 시간 — 시",
+            placeholder="🌅 기상 시간 · 시 (0~23시)",
             options=_hour_options(7),
             custom_id="wake_hour",
             row=0,
@@ -53,7 +53,7 @@ class TimeStep1View(discord.ui.View):
         self.add_item(wake_h)
 
         wake_m = discord.ui.Select(
-            placeholder="기상 시간 — 분",
+            placeholder="🌅 기상 시간 · 분 (10분 단위)",
             options=_minute_options(0),
             custom_id="wake_minute",
             row=1,
@@ -62,7 +62,7 @@ class TimeStep1View(discord.ui.View):
         self.add_item(wake_m)
 
         bf_h = discord.ui.Select(
-            placeholder="☀️ 아침 알림 — 시",
+            placeholder="🍳 아침 알림 · 시 (0~23시)",
             options=_hour_options(8),
             custom_id="breakfast_hour",
             row=2,
@@ -71,7 +71,7 @@ class TimeStep1View(discord.ui.View):
         self.add_item(bf_h)
 
         bf_m = discord.ui.Select(
-            placeholder="아침 알림 — 분",
+            placeholder="🍳 아침 알림 · 분 (10분 단위)",
             options=_minute_options(0),
             custom_id="breakfast_minute",
             row=3,
@@ -106,8 +106,10 @@ class TimeStep1View(discord.ui.View):
 
         await interaction.response.edit_message(
             content=(
-                f"✅ 기상 시간: **{wake}**  |  아침 알림: **{breakfast}**\n\n"
-                "이제 점심/저녁 알림 시간을 설정해줘!"
+                f"✅ 기상: **{wake}** / 아침: **{breakfast}** 저장됨\n\n"
+                "⏰ **시간 설정** — 2단계\n\n"
+                "🌞 **점심 알림** — 시 / 분\n"
+                "🌙 **저녁 알림** — 시 / 분"
             ),
             view=TimeStep2View(
                 user_id       = self.user_id,
@@ -135,7 +137,7 @@ class TimeStep2View(discord.ui.View):
         self.dinner_minute  = 0
 
         lunch_h = discord.ui.Select(
-            placeholder="🌞 점심 알림 — 시",
+            placeholder="🌞 점심 알림 · 시 (0~23시)",
             options=_hour_options(12),
             custom_id="lunch_hour",
             row=0,
@@ -144,7 +146,7 @@ class TimeStep2View(discord.ui.View):
         self.add_item(lunch_h)
 
         lunch_m = discord.ui.Select(
-            placeholder="점심 알림 — 분",
+            placeholder="🌞 점심 알림 · 분 (10분 단위)",
             options=_minute_options(0),
             custom_id="lunch_minute",
             row=1,
@@ -153,7 +155,7 @@ class TimeStep2View(discord.ui.View):
         self.add_item(lunch_m)
 
         dinner_h = discord.ui.Select(
-            placeholder="🌙 저녁 알림 — 시",
+            placeholder="🌙 저녁 알림 · 시 (0~23시)",
             options=_hour_options(18),
             custom_id="dinner_hour",
             row=2,
@@ -162,7 +164,7 @@ class TimeStep2View(discord.ui.View):
         self.add_item(dinner_h)
 
         dinner_m = discord.ui.Select(
-            placeholder="저녁 알림 — 분",
+            placeholder="🌙 저녁 알림 · 분 (10분 단위)",
             options=_minute_options(0),
             custom_id="dinner_minute",
             row=3,

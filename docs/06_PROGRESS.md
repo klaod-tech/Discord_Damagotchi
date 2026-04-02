@@ -1,4 +1,4 @@
-# 진행 상황 (v2.3 기준 — 2026-04-03)
+# 진행 상황 (v2.4 기준 — 2026-04-03)
 
 ## 구현 완료
 
@@ -12,7 +12,7 @@
 | `utils/pattern.py` | 식습관 패턴 분석 (5가지 패턴 탐지) | ✅ 완료 |
 | `utils/gpt_ml_bridge.py` | ML 결과 → GPT 주입 브릿지 | ✅ 완료 |
 | `cogs/onboarding.py` | 4필드 Modal, 쓰레드 생성, 첫 Embed 전송, TimeStep1View 유도, gender/age/height 저장, 식사 알림 Job 등록 | ✅ 완료 |
-| `cogs/time_settings.py` | Select Menu 2단계 시간 설정, 저장 시 식사 알림 Job 재등록 | ✅ 완료 |
+| `cogs/time_settings.py` | Select Menu 2단계 시간 설정, 분 10분 단위, 저장 시 식사 알림 Job 재등록 | ✅ 완료 |
 | `cogs/meal.py` | 사진 입력 (on_message → GPT Vision → DB 저장), 칼로리 0 저장 차단 | ✅ 완료 |
 | `cogs/summary.py` | 오늘 요약 (칼로리/탄단지/끼니별/GPT 코멘트) | ✅ 완료 |
 | `cogs/weather.py` | 기상청+에어코리아 API, wake_time 기반 스케줄러 | ✅ 완료 |
@@ -44,6 +44,8 @@
 | users 테이블 gender/age/height 컬럼 누락 | init_db() 마이그레이션에 ADD COLUMN IF NOT EXISTS 추가 | v2.3 |
 | 오늘 요약 식사 기록 조회 안 됨 | meals 날짜 쿼리 UTC→KST 이중변환 적용 (`AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul'`) | v2.3 |
 | 메인 Embed 이미지 작게 표시됨 | set_thumbnail() 제거, 파일 첨부로 이미지 크게 표시되도록 변경 | v2.3 |
+| 오늘 요약 footer 불필요 | 개인 쓰레드에서 ephemeral footer 제거 | v2.4 |
+| 시간 설정 분 단위 30분 → 10분 | _minute_options 10분 단위 6개로 변경, placeholder 구역 레이블 추가 | v2.4 |
 | psycopg2-binary requirements 누락 | requirements.txt에 추가 | v2.0 |
 | weight_log 테이블 init_db 미등록 | init_db()에 CREATE TABLE 추가 | v2.0 |
 | image.py 파일명 불일치 | 실제 이미지 파일명 기준으로 전면 수정 | v1.8 |
