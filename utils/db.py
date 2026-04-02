@@ -28,6 +28,9 @@ def init_db():
             lunch_time       TEXT,
             dinner_time      TEXT,
             thread_id        TEXT,
+            gender           TEXT,
+            age              INTEGER,
+            height           REAL,
             created_at       TIMESTAMP DEFAULT NOW()
         )
     """)
@@ -76,6 +79,15 @@ def init_db():
         )
     """)
 
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS weight_log (
+            log_id      SERIAL PRIMARY KEY,
+            user_id     TEXT REFERENCES users(user_id),
+            weight      REAL,
+            recorded_at TIMESTAMP DEFAULT NOW()
+        )
+    """)
+
     conn.commit()
     cur.close()
     conn.close()
@@ -89,8 +101,9 @@ def create_user(user_id, data: dict):
         INSERT INTO users (
             user_id, tamagotchi_name, city, wake_time,
             init_weight, goal_weight, daily_cal_target,
-            breakfast_time, lunch_time, dinner_time, thread_id
-        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            breakfast_time, lunch_time, dinner_time, thread_id,
+            gender, age, height
+        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         ON CONFLICT (user_id) DO NOTHING
     """, (
         user_id,
@@ -104,6 +117,9 @@ def create_user(user_id, data: dict):
         data.get("lunch_time"),
         data.get("dinner_time"),
         data.get("thread_id"),
+        data.get("gender"),
+        data.get("age"),
+        data.get("height"),
     ))
     conn.commit()
     cur.close()

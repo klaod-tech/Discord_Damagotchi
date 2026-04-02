@@ -83,6 +83,9 @@ class OnboardingModal(discord.ui.Modal, title="다마고치 시작하기"):
                 "breakfast_time":  breakfast,
                 "lunch_time":      lunch,
                 "dinner_time":     dinner,
+                "gender":          gender,
+                "age":             age,
+                "height":          height,
             }
 
             create_user(user_id, user_data)

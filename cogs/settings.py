@@ -76,12 +76,11 @@ class SettingsModal(discord.ui.Modal, title="⚙️ 설정 변경"):
                 messages.append(f"목표 체중: **{new_goal}kg**")
                 # 권장 칼로리 재계산
                 new_cal = await calculate_daily_calories(
-                    gender="남",
-                    age=25,
-                    height=170,
+                    gender=old.get("gender", "남"),
+                    age=old.get("age", 25),
+                    height=old.get("height", 170),
                     weight=old.get("init_weight", 70),
-                    activity="보통",
-                    goal="체중 감량" if new_goal < old.get("init_weight", 70) else "체중 유지",
+                    goal_weight=new_goal,
                 )
                 updates["daily_cal_target"] = new_cal
                 messages.append(f"권장 칼로리: **{new_cal} kcal/일**")
