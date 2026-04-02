@@ -62,10 +62,10 @@ async def setup(ctx: commands.Context):
         return
 
     embed = discord.Embed(
-        title="🐣 AI 다마고치에 오신 걸 환영해요!",
+        title="🌧️ 먹구름에 오신 걸 환영해요!",
         description=(
-            "다마고치와 함께 건강한 식습관을 만들어보세요.\n\n"
-            "아래 버튼을 눌러 나만의 다마고치를 만들어보세요! 👇"
+            "먹구름과 함께 건강한 식습관을 만들어보세요.\n\n"
+            "아래 버튼을 눌러 나만의 캐릭터를 만들어보세요! 👇"
         ),
         color=discord.Color.from_rgb(255, 220, 120),
     )

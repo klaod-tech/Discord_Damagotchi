@@ -20,7 +20,7 @@ TAMAGOTCHI_CHANNEL_ID = int(os.getenv("TAMAGOTCHI_CHANNEL_ID", "0"))
 # ══════════════════════════════════════════════════════
 # Modal: 온보딩 (1단계 통합)
 # ══════════════════════════════════════════════════════
-class OnboardingModal(discord.ui.Modal, title="다마고치 시작하기"):
+class OnboardingModal(discord.ui.Modal, title="먹구름 시작하기"):
     tama_name = discord.ui.TextInput(
         label="다마고치 이름",
         placeholder="예: 뚜비",
@@ -192,12 +192,12 @@ class OnboardingCog(commands.Cog):
     @app_commands.checks.has_permissions(manage_messages=True)
     async def start_cmd(self, interaction: discord.Interaction):
         embed = discord.Embed(
-            title="🥚 나만의 다마고치를 키워봐요!",
+            title="🌧️ 먹구름을 시작해봐요!",
             description=(
-                "아래 버튼을 눌러서 다마고치를 만들어보세요.\n\n"
-                "• 음식을 입력하면 다마고치에게 밥을 줄 수 있어요 🍚\n"
+                "아래 버튼을 눌러서 나만의 캐릭터를 만들어보세요.\n\n"
+                "• 음식을 입력하면 캐릭터에게 밥을 줄 수 있어요 🍚\n"
                 "• 칼로리와 날씨 정보가 캐릭터 표정으로 전달돼요 🌤️\n"
-                "• 건강하게 먹으면 다마고치가 행복해져요 😄"
+                "• 건강하게 먹으면 캐릭터가 행복해져요 😄"
             ),
             color=0x57F287,
         )
