@@ -51,15 +51,7 @@ pip install psycopg2-binary
 ```
 
 ### 2. 환경변수 설정
-`.env` 파일을 생성하고 아래 값을 입력하세요:
-```
-DISCORD_TOKEN=
-OPENAI_API_KEY=
-WEATHER_API_KEY=
-AIR_API_KEY=
-DATABASE_URL=postgresql://postgres.{project_id}:{password}@...
-TAMAGOTCHI_CHANNEL_ID=
-```
+팀원에게 `.env` 파일을 받아 프로젝트 루트에 배치하세요.
 
 ### 3. 봇 실행
 ```bash
