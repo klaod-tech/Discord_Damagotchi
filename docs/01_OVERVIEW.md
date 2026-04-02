@@ -69,6 +69,7 @@ TAMAGOTCHI_CHANNEL_ID  # #다마고치 채널 ID
 | v1.6 | 2026-03-29 | 오후 10시 칼로리 판정 스케줄러 |
 | v1.7 | 2026-03-31 | ML(pattern/ml/bridge), Vision 사진입력, 체중기록 |
 | v1.8 | 2026-04-02 | 이미지 파일명 정리, 문서 구조화 |
+| v1.9 | 2026-04-02 | 시간 설정 Select Menu 분리 (cogs/time_settings.py), 메인 Embed 버튼 6개 2행 재편 |
 
 ---
 

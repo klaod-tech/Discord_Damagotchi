@@ -60,18 +60,15 @@
 ## 다음 작업 우선순위
 
 ```
-[P1] 이미지 파일명 정리 ← 현재 진행 중 (본인 담당)
-  → 파일명 결정 후 image.py와 매핑 확인
-
-[P2] 식사 알림 스케줄러 구현
+[P1] 식사 알림 스케줄러 구현
   → cogs/scheduler.py에 meal alert jobs 추가
   → 참고: docs/02_FLOWS.md → 식사 알림 흐름
 
+[P2] settings.py 권장 칼로리 재계산 버그 수정
+
 [P3] requirements.txt에 psycopg2-binary 추가
 
-[P4] settings.py 권장 칼로리 재계산 버그 수정
-
-[P5] 호스팅 배포
+[P4] 호스팅 배포
   → Railway / Render / VPS 중 선택
   → .env → 플랫폼 시크릿 이전
   → develop → main 머지 후 배포
