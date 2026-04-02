@@ -10,24 +10,34 @@
 
 ```
 Discord_Damagotchi/
-├── bot.py                  # 봇 메인 진입점
+├── bot.py                      # 봇 메인 진입점
 ├── cogs/
-│   ├── onboarding.py       # 온보딩 + 쓰레드 생성
-│   ├── meal.py             # 식사 입력 (텍스트 + 사진)
-│   ├── weather.py          # 날씨 연동 + 이미지 교체
-│   ├── summary.py          # 오늘 요약
-│   ├── settings.py         # 설정 변경
-│   └── scheduler.py        # APScheduler 알림 관리
+│   ├── onboarding.py           # 온보딩 + 쓰레드 생성
+│   ├── meal.py                 # 식사 입력 (사진 — GPT Vision)
+│   ├── weather.py              # 날씨 연동 + 이미지 교체
+│   ├── summary.py              # 오늘 요약
+│   ├── settings.py             # 설정 변경
+│   ├── scheduler.py            # APScheduler (오후 10시 칼로리 판정)
+│   └── weight.py               # 체중 기록
 ├── utils/
-│   ├── gpt.py              # OpenAI API 래퍼
-│   ├── db.py               # DB 연결 + 쿼리
-│   ├── embed.py            # Embed UI 생성 + 수정
-│   └── image.py            # 상태별 이미지 선택 로직
-├── images/                 # 다마고치 이미지 (~25종)
-├── database.py             # DB 초기화 + CRUD
-├── .env.example            # 환경변수 템플릿
-├── requirements.txt
-└── README.md
+│   ├── gpt.py                  # OpenAI API 래퍼
+│   ├── db.py                   # Supabase CRUD
+│   ├── embed.py                # Embed UI + 식사 입력 Modal
+│   ├── image.py                # 상태별 이미지 선택 로직
+│   ├── pattern.py              # 식습관 패턴 분석 (ML)
+│   ├── ml.py                   # 칼로리 보정 모델 (ML)
+│   └── gpt_ml_bridge.py        # ML → GPT 브릿지
+├── images/                     # 다마고치 이미지 (17종)
+├── docs/                       # 프로젝트 문서
+│   ├── CONTEXT.md              # 문서 인덱스 (협업자 시작점)
+│   ├── 01_OVERVIEW.md
+│   ├── 02_FLOWS.md
+│   ├── 03_DATABASE.md
+│   ├── 04_GAME_RULES.md
+│   ├── 05_ML_MODULES.md
+│   └── 06_PROGRESS.md
+├── .env
+└── requirements.txt
 ```
 
 ---
@@ -37,12 +47,18 @@ Discord_Damagotchi/
 ### 1. 패키지 설치
 ```bash
 pip install -r requirements.txt
+pip install psycopg2-binary
 ```
 
 ### 2. 환경변수 설정
-```bash
-cp .env.example .env
-# .env 파일을 열어 값 입력
+`.env` 파일을 생성하고 아래 값을 입력하세요:
+```
+DISCORD_TOKEN=
+OPENAI_API_KEY=
+WEATHER_API_KEY=
+AIR_API_KEY=
+DATABASE_URL=postgresql://postgres.{project_id}:{password}@...
+TAMAGOTCHI_CHANNEL_ID=
 ```
 
 ### 3. 봇 실행
@@ -66,7 +82,8 @@ python bot.py
 | `DISCORD_TOKEN` | 디스코드 봇 토큰 |
 | `OPENAI_API_KEY` | OpenAI API 키 |
 | `WEATHER_API_KEY` | 기상청 공공데이터 포털 인증키 |
-| `DATABASE_URL` | DB 경로 (기본값: `./tamagotchi.db`) |
+| `AIR_API_KEY` | 에어코리아 API 키 (미세먼지) |
+| `DATABASE_URL` | Supabase Session pooler URL |
 | `TAMAGOTCHI_CHANNEL_ID` | `#다마고치` 채널 ID |
 
 ---
@@ -74,11 +91,13 @@ python bot.py
 ## 🛠️ 기술 스택
 
 - **Python 3.11+**
-- **discord.py** — 디스코드 봇
+- **discord.py 2.x** — 디스코드 봇
 - **OpenAI GPT-4o** — 칼로리 분석 / Vision / 대사 생성
-- **SQLite** — 로컬 DB
-- **APScheduler** — 식사 알림, 날씨 교체 자동화
+- **Supabase (PostgreSQL)** — 클라우드 DB (psycopg2)
+- **APScheduler** — 날씨 교체, 칼로리 자동 판정
 - **기상청 공공데이터 API** — 날씨 정보
+- **에어코리아 API** — 미세먼지 정보
+- **scikit-learn / pandas** — ML 칼로리 보정 + 식습관 패턴 분석
 
 ---
 
@@ -103,3 +122,9 @@ python bot.py
 | `sick.png` | hp < 40 |
 | `tired.png` | mood < 40 |
 | `goal_achieved.png` | 목표 체중 달성 |
+
+---
+
+## 📖 상세 문서
+
+프로젝트 상세 문서는 [`docs/CONTEXT.md`](docs/CONTEXT.md)를 참고하세요.
