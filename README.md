@@ -95,25 +95,19 @@ python bot.py
 
 ## 🖼️ 다마고치 이미지 목록
 
-| 이미지 | 표시 조건 |
-|--------|-----------|
-| `happy.png` | hp ≥ 70, hunger ≥ 70, mood ≥ 70 |
-| `normal.png` | 모든 수치 40~69 (기본) |
-| `hungry.png` | 식사 알림 정각 이후 미입력 |
-| `hungry_cry.png` | 식사 알림 1시간 후 미입력 |
-| `eating.png` | 식사 입력 직후 3분 |
-| `overfed.png` | 오후 10시 칼로리 > 권장 |
-| `underfed.png` | 오후 10시 칼로리 < 권장×0.67 |
-| `sunny.png` | 맑음 + 15~25°C |
-| `hot.png` | 기온 ≥ 26°C |
-| `cold.png` | 기온 ≤ 5°C |
-| `rainy.png` | 비/소나기 |
-| `snowy.png` | 눈 |
-| `cloudy.png` | 흐림 |
-| `dusty.png` | PM10 > 80 또는 PM2.5 > 35 |
-| `sick.png` | hp < 40 |
-| `tired.png` | mood < 40 |
-| `goal_achieved.png` | 목표 체중 달성 |
+| 이미지 | 표시 조건 | 우선순위 |
+|--------|-----------|---------|
+| `cheer.png` | 목표 체중 달성 | 1 |
+| `eat.png` | 식사 입력 직후 3분 이내 | 2 |
+| `upset.png` | hunger < 40 (배고픔 통합) | 3 |
+| `wear mask.png` | PM10 > 80 또는 PM2.5 > 35 | 4 |
+| `rainy.png` | 비/소나기 | 4 |
+| `snow.png` | 눈 | 4 |
+| `hot.png` | 기온 ≥ 26°C | 4 |
+| `warm.png` | 기온 ≤ 5°C (추운 날) | 4 |
+| `tired.png` | hp < 40 또는 mood < 40 | 5 |
+| `smile.png` | hp ≥ 70, hunger ≥ 70, mood ≥ 70 | 5 |
+| `normal.png` | 기본값 (맑음/흐림 포함) | 5 |
 
 ---
 
