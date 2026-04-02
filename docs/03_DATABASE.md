@@ -107,9 +107,12 @@ recorded_at TIMESTAMP DEFAULT NOW()
 | `get_meals_by_date(user_id, date)` | 특정 날짜 식사 목록 |
 | `get_today_calories(user_id)` | 오늘 총 칼로리 |
 | `get_calories_by_date(user_id, date)` | 특정 날짜 총 칼로리 |
+| `has_meal_type_on_date(user_id, meal_type, date)` | 특정 날짜 끼니 기록 여부 |
+| `create_weather_log(...)` | 날씨 기록 저장 |
+| `get_latest_weather(user_id)` | 최신 날씨 조회 |
+| `create_weight_log(user_id, weight)` | 체중 기록 저장 |
+| `get_weight_logs(user_id, limit)` | 체중 기록 조회 |
 
 > **타임존 주의**: `recorded_at`은 UTC로 저장됨 (Supabase 기본값). 날짜 비교 쿼리는  
 > `(recorded_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date = %s` 형태로  
 > UTC → KST 이중 변환 후 비교. `AT TIME ZONE` 단일 사용 시 역방향 해석 버그 발생.
-| `create_weather_log(...)` | 날씨 기록 저장 |
-| `get_latest_weather(user_id)` | 최신 날씨 조회 |

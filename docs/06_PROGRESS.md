@@ -51,6 +51,8 @@
 | "남은 거리" 용어 부자연스러움 | embed.py, weight.py → "남은 몸무게"로 수정 | v2.5 |
 | 오늘 일정 날씨 지역 미표시 | 날씨 텍스트에 📍 도시명 추가 | v2.5 |
 | ML 재학습 스케줄러 미등록 | scheduler.py에 매주 일요일 03:00 _weekly_ml_retrain() Job 등록 | v2.6 |
+| 이미지 11종 동작 검증 | images/ 폴더 파일 존재 확인, IMAGE_DESCRIPTIONS 키 매핑 전수 검사 완료 | v2.6 |
+| 오늘 일정 footer 미제거 | embed.py schedule_button의 ephemeral footer 제거 | v2.6 |
 | psycopg2-binary requirements 누락 | requirements.txt에 추가 | v2.0 |
 | weight_log 테이블 init_db 미등록 | init_db()에 CREATE TABLE 추가 | v2.0 |
 | image.py 파일명 불일치 | 실제 이미지 파일명 기준으로 전면 수정 | v1.8 |

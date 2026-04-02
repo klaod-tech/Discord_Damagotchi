@@ -546,8 +546,6 @@ class MainView(discord.ui.View):
                 value=f"*{ml_comment}*",
                 inline=False,
             )
-            embed.set_footer(text=f"이 메시지는 {tama_name}만 볼 수 있어요 👀")
-
             await interaction.followup.send(embed=embed, ephemeral=True)
 
         except Exception as e:
