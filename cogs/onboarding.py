@@ -41,11 +41,6 @@ class OnboardingModal(discord.ui.Modal, title="다마고치 시작하기"):
         placeholder="예: 남/25/175",
         max_length=15,
     )
-    schedule_info = discord.ui.TextInput(
-        label="기상시간 / 식사알림 (HH:MM / 아침,점심,저녁)",
-        placeholder="예: 09:30 / 08:00,12:00,18:00",
-        max_length=30,
-    )
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True, thinking=True)
@@ -61,19 +56,11 @@ class OnboardingModal(discord.ui.Modal, title="다마고치 시작하기"):
             age    = int(body[1].strip())
             height = float(body[2].strip())
 
-            # 기상시간 + 식사알림 파싱
-            schedule_raw = self.schedule_info.value.strip()
-            if "/" in schedule_raw:
-                wake_raw, meals_raw = schedule_raw.split("/", 1)
-            else:
-                wake_raw  = "07:00"
-                meals_raw = schedule_raw
-
-            wake_time = wake_raw.strip() or "07:00"
-            times     = [t.strip() for t in meals_raw.strip().split(",")]
-            breakfast = times[0] if len(times) > 0 else "08:00"
-            lunch     = times[1] if len(times) > 1 else "12:00"
-            dinner    = times[2] if len(times) > 2 else "18:00"
+            # 시간 기본값 (시간 설정은 온보딩 완료 후 TimeStep1View에서 진행)
+            wake_time = "07:00"
+            breakfast = "08:00"
+            lunch     = "12:00"
+            dinner    = "18:00"
 
             # GPT 권장 칼로리 계산 (목표 체중 기반 동적 산출)
             daily_cal = await calculate_daily_calories(
@@ -140,7 +127,14 @@ class OnboardingModal(discord.ui.Modal, title="다마고치 시작하기"):
 
             await interaction.followup.send(
                 f"✅ 설정 완료! {thread.mention} 에서 확인해봐!\n"
-                f"기상 시간 **{wake_time}**에 날씨 알림을 보내줄게 🌤️",
+                f"이제 기상 시간과 식사 알림 시간을 설정해줘 ⏰",
+                ephemeral=True,
+            )
+
+            from cogs.time_settings import TimeStep1View
+            await interaction.followup.send(
+                "⬇️ 아래에서 시간을 설정해줘!",
+                view=TimeStep1View(user_id=user_id, from_onboarding=True),
                 ephemeral=True,
             )
 
