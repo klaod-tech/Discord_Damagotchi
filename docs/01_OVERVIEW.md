@@ -82,6 +82,6 @@ TAMAGOTCHI_CHANNEL_ID  # #다마고치 채널 ID
 ---
 
 ## GitHub
-- Repo: https://github.com/klaod-tech/Discord_Damagotchi
+- Repo: https://github.com/klaod-tech/mukgoorm
 - 메인 브랜치: `main`
 - 개발 브랜치: `develop` ← **모든 개발은 여기서**

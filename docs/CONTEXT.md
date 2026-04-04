@@ -40,7 +40,7 @@ version: 2.7 | last_updated: 2026-04-04 | branch: develop
 ## 빠른 참조
 
 ```
-GitHub: https://github.com/klaod-tech/Discord_Damagotchi
+GitHub: https://github.com/klaod-tech/mukgoorm
 개발 브랜치: develop
 현재 버전: v2.7
 DB: Supabase (PostgreSQL, psycopg2-binary)

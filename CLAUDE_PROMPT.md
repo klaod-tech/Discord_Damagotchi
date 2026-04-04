@@ -194,4 +194,4 @@ TAMAGOTCHI_CHANNEL_ID=
 - `main` — 배포용
 - `develop` — 개발용 (현재 v2.7)
 
-GitHub: https://github.com/klaod-tech/Discord_Damagotchi
+GitHub: https://github.com/klaod-tech/mukgoorm
