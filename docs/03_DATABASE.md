@@ -23,6 +23,9 @@ thread_id        TEXT NOT NULL         -- 유저 전용 쓰레드 ID
 gender           TEXT                  -- 성별 (남/여) — 칼로리 재계산용
 age              INTEGER               -- 나이 — 칼로리 재계산용
 height           REAL                  -- 키 cm — 칼로리 재계산용
+streak           INTEGER DEFAULT 0     -- 현재 연속 식사 기록일 (v2.7)
+max_streak       INTEGER DEFAULT 0     -- 역대 최고 연속 기록일 (v2.7)
+badges           TEXT    DEFAULT '[]'  -- 획득 배지 ID JSON 배열 (v2.7)
 created_at       TIMESTAMP DEFAULT NOW()
 ```
 
@@ -112,6 +115,9 @@ recorded_at TIMESTAMP DEFAULT NOW()
 | `get_latest_weather(user_id)` | 최신 날씨 조회 |
 | `create_weight_log(user_id, weight)` | 체중 기록 저장 |
 | `get_weight_logs(user_id, limit)` | 체중 기록 조회 |
+| `update_streak(user_id, streak, max_streak)` | 연속 기록일 업데이트 (v2.7) |
+| `add_badges(user_id, badge_ids)` | 배지 JSON 배열에 신규 배지 추가 (v2.7) |
+| `get_weekly_meal_stats(user_id, start_date)` | 주간 식사 통계 (일별 칼로리/끼니 커버리지/최다 음식) (v2.7) |
 
 > **타임존 주의**: `recorded_at`은 UTC로 저장됨 (Supabase 기본값). 날짜 비교 쿼리는  
 > `(recorded_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date = %s` 형태로  

@@ -102,12 +102,23 @@ Row 1: [ ⚙️ 설정 변경 ] [ ⏰ 시간 설정 ] [ ⚖️ 체중 기록 ]
 ```
 매일 22:00 자동 실행
   → 전체 유저 순회
-  → 식사 기록 없으면: 알림 메시지만 전송
+  → 식사 기록 없으면:
+    → "밥은 먹었어?" 알림 메시지 전송
+    → streak = 0 초기화 (streak ≥ 3이었다면 아쉬운 메시지 추가)
   → 식사 기록 있으면:
-    if total_cal > daily_cal_target       → overfed 판정
+    if total_cal > daily_cal_target        → overfed 판정
     if total_cal < daily_cal_target × 0.67 → underfed 판정
     → _send_daily_analysis() → 하루 결산 Embed 전송
     → Embed 이미지 갱신 (overfed/underfed/정상)
+    → streak + 1, max_streak 갱신 → DB 저장
+    → check_new_badges() → 신규 배지 확인
+    → 신규 배지 있으면:
+      → 배지별 골드 Embed 전송 (🏅 배지 획득!)
+      → 메인 Embed: cheer.png + 축하 대사로 갱신
+
+매주 일요일 08:00 — 주간 리포트
+  → 전체 유저 순회
+  → 주간 칼로리 평균/끼니 커버리지/최다 음식/체중 변화/스트릭/배지 Embed 전송
 ```
 
 ---

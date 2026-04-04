@@ -12,7 +12,7 @@ cogs/meal.py — 사진 식사 입력 기능
 
 import discord
 from discord.ext import commands
-from datetime import date
+from datetime import date, datetime
 import aiohttp
 import base64
 import time
@@ -217,9 +217,10 @@ class MealPhotoConfirmView(discord.ui.View):
             new_mood   = min(100, (tama.get("mood") or 50) + 5)
             new_hp     = min(100, (tama.get("hp") or 100) + 5)
             update_tamagotchi(self.user_id, {
-                "hunger": new_hunger,
-                "mood":   new_mood,
-                "hp":     new_hp,
+                "hunger":      new_hunger,
+                "mood":        new_mood,
+                "hp":          new_hp,
+                "last_fed_at": datetime.utcnow().isoformat(),
             })
 
             today_cal = get_calories_by_date(self.user_id, today)

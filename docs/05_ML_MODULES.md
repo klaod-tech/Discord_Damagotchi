@@ -53,10 +53,10 @@
 **역할**: ML 결과를 GPT `extra_context` 파라미터로 주입
 
 **주요 함수**:
-- `get_corrected_calories(user_id, food_name, meal_type, gpt_calories)` — 보정된 칼로리 반환 (int)
-- `generate_comment_with_pattern(...)` — 패턴 분석 결과가 포함된 GPT 대사 생성
+- `get_corrected_calories(user_id, food_name, meal_type, gpt_calories)` — 보정된 칼로리 반환 (int). `cogs/meal.py`, `utils/embed.py`에서 실제 호출 중
+- `generate_comment_with_pattern(...)` — 패턴 분석 결과가 포함된 GPT 대사 생성. **현재 미사용 (데드코드)**. `generate_comment()` 호출 파라미터가 실제 시그니처와 불일치하므로 추후 사용 전 수정 필요 (→ `docs/06_PROGRESS.md` P2 항목 참고)
 
-**사용 위치**: `cogs/meal.py`, `utils/embed.py` → MealInputModal, MealPhotoConfirmView
+**사용 위치**: `cogs/meal.py`, `utils/embed.py` → MealInputModal, MealPhotoConfirmView (`get_corrected_calories`만 실제 호출)
 
 ---
 

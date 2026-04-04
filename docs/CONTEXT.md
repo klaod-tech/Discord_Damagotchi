@@ -1,5 +1,5 @@
 # 먹구름 (mukgoorm) — 프로젝트 컨텍스트 인덱스
-version: 2.6 | last_updated: 2026-04-03 | branch: develop
+version: 2.7 | last_updated: 2026-04-04 | branch: develop
 
 ---
 
@@ -13,6 +13,7 @@ version: 2.6 | last_updated: 2026-04-03 | branch: develop
 | [04_GAME_RULES.md](04_GAME_RULES.md) | hp/hunger/mood 수치 변화, 이미지 선택 우선순위 및 트리거 |
 | [05_ML_MODULES.md](05_ML_MODULES.md) | ML 3개 모듈 (pattern/ml/bridge) 설명 및 로드맵 |
 | [06_PROGRESS.md](06_PROGRESS.md) | 구현 완료 목록, 미구현/버그, 다음 작업 우선순위 |
+| [07_NEXT_FEATURES.md](07_NEXT_FEATURES.md) | v2.8 계획: n8n 음식 추천 기능 + 버튼 UI 개편 (설계/미결 사항 포함) |
 
 ---
 
@@ -41,8 +42,9 @@ version: 2.6 | last_updated: 2026-04-03 | branch: develop
 ```
 GitHub: https://github.com/klaod-tech/Discord_Damagotchi
 개발 브랜치: develop
-현재 버전: v2.6
+현재 버전: v2.7
 DB: Supabase (PostgreSQL, psycopg2-binary)
 AI: OpenAI GPT-4o
 버튼 6개 (2행): [🍽️ 식사 입력] [📊 오늘 요약] [📅 오늘 일정] / [⚙️ 설정 변경] [⏰ 시간 설정] [⚖️ 체중 기록]
+v2.8 목표 버튼 5개: [🍽️ 식사 입력] [📋 하루 정리] [🍜 뭐 먹고 싶어?] / [⚙️ 설정] [⚖️ 체중 기록]
 ```

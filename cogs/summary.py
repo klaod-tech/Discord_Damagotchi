@@ -19,7 +19,7 @@ async def send_summary(interaction: discord.Interaction):
     user = get_user(user_id)
 
     if not user:
-        await interaction.followup.send("먼저 /start 로 등록해줘!", ephemeral=True)
+        await interaction.followup.send("먼저 '🥚 시작하기' 버튼을 눌러서 등록해줘!", ephemeral=True)
         return
 
     meals = get_today_meals(user_id)

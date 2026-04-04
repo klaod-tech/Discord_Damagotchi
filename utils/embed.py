@@ -9,7 +9,7 @@ Embed 구조:
 import os
 import asyncio
 import discord
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from utils.image import select_image, IMAGE_DESCRIPTIONS
 from utils.gpt_ml_bridge import get_corrected_calories  # ✅ ML 보정 import
 
@@ -191,9 +191,10 @@ class MealInputModal(discord.ui.Modal, title="🍽️ 식사 입력"):
                 new_mood   = min(100, (tama.get("mood") or 50) + 5)
                 new_hp     = min(100, (tama.get("hp") or 100) + 5)
                 update_tamagotchi(user_id, {
-                    "hunger": new_hunger,
-                    "mood": new_mood,
-                    "hp": new_hp,
+                    "hunger":      new_hunger,
+                    "mood":        new_mood,
+                    "hp":          new_hp,
+                    "last_fed_at": datetime.utcnow().isoformat(),
                 })
 
             today_cal = get_calories_by_date(user_id, target_date)

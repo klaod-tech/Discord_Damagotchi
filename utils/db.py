@@ -41,6 +41,16 @@ def init_db():
             ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {col_type}
         """)
 
+    # 스트릭 / 배지 컬럼 (v2.7 마이그레이션)
+    for col, col_type, default in [
+        ("streak",     "INTEGER", "0"),
+        ("max_streak", "INTEGER", "0"),
+        ("badges",     "TEXT",    "'[]'"),
+    ]:
+        cur.execute(
+            f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {col_type} DEFAULT {default}"
+        )
+
     cur.execute("""
         CREATE TABLE IF NOT EXISTS tamagotchi (
             user_id          TEXT PRIMARY KEY REFERENCES users(user_id),
@@ -336,3 +346,102 @@ def get_latest_weather(user_id):
     cur.close()
     conn.close()
     return row
+
+
+# ===== Streak / Badge CRUD =====
+
+def update_streak(user_id: str, streak: int, max_streak: int):
+    """연속 기록일 업데이트"""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET streak = %s, max_streak = %s WHERE user_id = %s",
+        (streak, max_streak, user_id),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def add_badges(user_id: str, badge_ids: list):
+    """기존 badges JSON 배열에 새 배지를 중복 없이 추가"""
+    import json as _json
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT badges FROM users WHERE user_id = %s", (user_id,))
+    row = cur.fetchone()
+    existing = _json.loads(row["badges"] or "[]") if row else []
+    merged = list(set(existing + badge_ids))
+    cur.execute(
+        "UPDATE users SET badges = %s WHERE user_id = %s",
+        (_json.dumps(merged, ensure_ascii=False), user_id),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def get_weekly_meal_stats(user_id: str, start_date) -> dict:
+    """
+    start_date 이후 7일간 식사 통계 반환.
+    Returns:
+      daily_calories : {날짜str: 총칼로리}
+      meal_coverage  : {끼니: 기록일수}
+      top_food       : 가장 많이 먹은 음식명 (없으면 None)
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+
+    # 일별 칼로리
+    cur.execute(
+        """
+        SELECT
+            (recorded_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date AS day,
+            SUM(calories) AS total
+        FROM meals
+        WHERE user_id = %s
+          AND (recorded_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date >= %s
+        GROUP BY day
+        ORDER BY day
+        """,
+        (user_id, start_date),
+    )
+    daily_calories = {str(r["day"]): r["total"] for r in cur.fetchall()}
+
+    # 끼니 유형별 기록일 수
+    cur.execute(
+        """
+        SELECT
+            meal_type,
+            COUNT(DISTINCT (recorded_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date) AS days
+        FROM meals
+        WHERE user_id = %s
+          AND (recorded_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date >= %s
+        GROUP BY meal_type
+        """,
+        (user_id, start_date),
+    )
+    meal_coverage = {r["meal_type"]: r["days"] for r in cur.fetchall()}
+
+    # 가장 많이 먹은 음식
+    cur.execute(
+        """
+        SELECT food_name, COUNT(*) AS cnt
+        FROM meals
+        WHERE user_id = %s
+          AND (recorded_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Seoul')::date >= %s
+        GROUP BY food_name
+        ORDER BY cnt DESC
+        LIMIT 1
+        """,
+        (user_id, start_date),
+    )
+    top_row = cur.fetchone()
+
+    cur.close()
+    conn.close()
+    return {
+        "daily_calories": daily_calories,
+        "meal_coverage":  meal_coverage,
+        "top_food":       top_row["food_name"] if top_row else None,
+    }
