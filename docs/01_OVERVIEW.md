@@ -19,10 +19,11 @@
 |------|------|
 | 언어 | Python 3.11+ |
 | 디스코드 | discord.py 2.x |
-| AI | OpenAI GPT-4o (칼로리 분석, Vision, 대사 생성) |
+| AI | OpenAI GPT-4o (자연어 파싱, Vision, 대사 생성, 칼로리 fallback) |
+| 영양 DB | 식품의약품안전처 식품영양성분 DB API (칼로리/영양소 1순위) |
 | 날씨 | 기상청 공공데이터 API (초단기실황조회) |
 | 미세먼지 | 에어코리아 API (PM10, PM2.5) |
-| DB | Supabase (PostgreSQL) — psycopg2, Session pooler |
+| DB | Supabase (PostgreSQL) — psycopg2-binary, Session pooler |
 | 스케줄러 | APScheduler (AsyncIOScheduler) |
 | ML | scikit-learn (Ridge / RandomForest), pandas, numpy |
 | 칼로리 공식 | Mifflin-St Jeor |
@@ -36,10 +37,13 @@
 DISCORD_TOKEN          # 디스코드 봇 토큰
 OPENAI_API_KEY         # OpenAI API 키
 WEATHER_API_KEY        # 기상청 공공데이터 포털 인증키
-AIR_API_KEY            # 에어코리아 API 키
+AIR_API_KEY            # 에어코리아 API 키 (AIRKOREA_API_KEY 아님)
 DATABASE_URL           # Supabase Session pooler URL
                        # 형식: postgresql://postgres.{project_id}:{password}@...
 TAMAGOTCHI_CHANNEL_ID  # #다마고치 채널 ID
+FOOD_API_KEY           # 공공데이터포털 인증키 (식약처 식품영양성분 DB)
+                       # data.go.kr → 식품의약품안전처_식품영양성분 DB 정보 신청
+                       # WEATHER_API_KEY와 동일한 포털 키 사용 가능
 ```
 
 ---
@@ -78,6 +82,7 @@ TAMAGOTCHI_CHANNEL_ID  # #다마고치 채널 ID
 | v2.5 | 2026-04-03 | 식사 입력 버튼에 텍스트/사진 선택 UI 추가 (MealInputSelectView), 사진 입력 60초 대기 흐름 구현, "남은 거리" → "남은 몸무게" 용어 수정, 오늘 일정 날씨에 도시명 표시 |
 | v2.6 | 2026-04-03 | ML 재학습 스케줄러 등록 (매주 일요일 03:00 retrain_all_users) |
 | v2.7 | 2026-04-04 | 스트릭 + 도전과제 배지 7종 (utils/badges.py), 주간 리포트 (일요일 08:00 자동 발송), users 테이블 streak/max_streak/badges 컬럼 추가 |
+| v2.8 | 2026-04-07 | 식약처 식품영양성분 DB API 연동 (utils/nutrition.py), 칼로리 분석 식약처 우선→GPT fallback 구조, UPSERT 재등록 (ML 데이터 보존), 식사 중복 제출 방지, 온보딩 입력 오류 안내 개선 |
 
 ---
 

@@ -120,7 +120,20 @@ def create_user(user_id, data: dict):
             breakfast_time, lunch_time, dinner_time, thread_id,
             gender, age, height
         ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-        ON CONFLICT (user_id) DO NOTHING
+        ON CONFLICT (user_id) DO UPDATE SET
+            tamagotchi_name  = EXCLUDED.tamagotchi_name,
+            city             = EXCLUDED.city,
+            wake_time        = EXCLUDED.wake_time,
+            init_weight      = EXCLUDED.init_weight,
+            goal_weight      = EXCLUDED.goal_weight,
+            daily_cal_target = EXCLUDED.daily_cal_target,
+            breakfast_time   = EXCLUDED.breakfast_time,
+            lunch_time       = EXCLUDED.lunch_time,
+            dinner_time      = EXCLUDED.dinner_time,
+            thread_id        = EXCLUDED.thread_id,
+            gender           = EXCLUDED.gender,
+            age              = EXCLUDED.age,
+            height           = EXCLUDED.height
     """, (
         user_id,
         data.get("tamagotchi_name"),
@@ -188,7 +201,14 @@ def create_tamagotchi(user_id):
     cur.execute("""
         INSERT INTO tamagotchi (user_id)
         VALUES (%s)
-        ON CONFLICT (user_id) DO NOTHING
+        ON CONFLICT (user_id) DO UPDATE SET
+            hp               = 100,
+            hunger           = 50,
+            mood             = 50,
+            current_image    = 'normal.png',
+            embed_message_id = NULL,
+            last_fed_at      = NULL,
+            updated_at       = NOW()
     """, (user_id,))
     conn.commit()
     cur.close()

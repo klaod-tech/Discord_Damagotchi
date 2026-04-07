@@ -90,6 +90,9 @@ def _weather_icon(weather: str, temp: float) -> str:
 # ══════════════════════════════════════════════════════
 # 식사 입력 Modal — 자연어 방식 + 합산 처리
 # ══════════════════════════════════════════════════════
+_meal_submitting: set[str] = set()  # 중복 제출 방지용 user_id 집합
+
+
 class MealInputModal(discord.ui.Modal, title="🍽️ 식사 입력"):
     food_input = discord.ui.TextInput(
         label="뭐 먹었어? 자유롭게 말해줘!",
@@ -104,6 +107,13 @@ class MealInputModal(discord.ui.Modal, title="🍽️ 식사 입력"):
     )
 
     async def on_submit(self, interaction: discord.Interaction):
+        user_id = str(interaction.user.id)
+        if user_id in _meal_submitting:
+            await interaction.response.send_message(
+                "⏳ 이미 처리 중이야! 잠깐만 기다려줘.", ephemeral=True
+            )
+            return
+        _meal_submitting.add(user_id)
         await interaction.response.defer(ephemeral=True, thinking=True)
         try:
             from utils.db import (
@@ -139,8 +149,11 @@ class MealInputModal(discord.ui.Modal, title="🍽️ 식사 입력"):
             else:
                 date_label = f"그저께({target_date.strftime('%m/%d')})"
 
-            # GPT로 영양 분석
-            result   = await analyze_meal_text(food_name)
+            # 영양 분석: 식약처 DB 우선 → 없으면 GPT fallback
+            from utils.nutrition import search_food_nutrition
+            result = await search_food_nutrition(food_name)
+            if result is None:
+                result = await analyze_meal_text(food_name)
             calories = result.get("calories", 0)
             protein  = result.get("protein", 0)
             carbs    = result.get("carbs", 0)
@@ -248,6 +261,8 @@ class MealInputModal(discord.ui.Modal, title="🍽️ 식사 입력"):
             import traceback
             traceback.print_exc()
             await interaction.followup.send(f"❌ 오류가 발생했어: {e}", ephemeral=True)
+        finally:
+            _meal_submitting.discard(user_id)
 
 
 # ══════════════════════════════════════════════════════

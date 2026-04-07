@@ -47,12 +47,26 @@ class OnboardingModal(discord.ui.Modal, title="먹구름 시작하기"):
         await interaction.response.defer(ephemeral=True, thinking=True)
         try:
             # 체중 파싱
-            weights     = self.weight_info.value.strip().split("/")
+            weights = self.weight_info.value.strip().split("/")
+            if len(weights) < 2:
+                await interaction.followup.send(
+                    "❌ 체중 형식이 올바르지 않아!\n"
+                    "예시: `76/70` (현재체중/목표체중) 형태로 입력해줘.",
+                    ephemeral=True,
+                )
+                return
             init_weight = float(weights[0].strip())
             goal_weight = float(weights[1].strip())
 
             # 신체정보 파싱
-            body   = self.body_info.value.strip().split("/")
+            body = self.body_info.value.strip().split("/")
+            if len(body) < 3:
+                await interaction.followup.send(
+                    "❌ 성별/나이/키 형식이 올바르지 않아!\n"
+                    "예시: `남/25/175` 또는 `여/23/162` 형태로 입력해줘.",
+                    ephemeral=True,
+                )
+                return
             gender = body[0].strip()
             age    = int(body[1].strip())
             height = float(body[2].strip())
@@ -179,11 +193,13 @@ class StartView(discord.ui.View):
             guild  = interaction.guild
             thread = guild.get_thread(int(existing["thread_id"]))
             if thread:
+                # 쓰레드가 살아있으면 기존 쓰레드 안내
                 await interaction.response.send_message(
                     f"이미 등록되어 있어! {thread.mention} 에서 확인해봐 😊",
                     ephemeral=True,
                 )
                 return
+        # 쓰레드가 없거나 삭제된 경우 → 모달 바로 열기 (데이터는 UPSERT로 덮어씀)
         await interaction.response.send_modal(OnboardingModal())
 
 
