@@ -11,6 +11,7 @@ from utils.db import (
     get_user,
     get_tamagotchi,
     set_thread_id,
+    set_mail_thread_id,
 )
 from utils.gpt import calculate_daily_calories, generate_comment
 from utils.embed import create_or_update_embed
@@ -127,6 +128,22 @@ class OnboardingModal(discord.ui.Modal, title="먹구름 시작하기"):
                 invitable=False,
             )
             set_thread_id(user_id, str(thread.id))
+
+            # 메일 전용 쓰레드 생성
+            mail_thread = await channel.create_thread(
+                name=f"📧 {interaction.user.display_name}의 메일함",
+                auto_archive_duration=10080,
+                invitable=False,
+            )
+            set_mail_thread_id(user_id, str(mail_thread.id))
+            await mail_thread.send(
+                f"📬 안녕, {interaction.user.mention}!\n"
+                f"여기는 **메일 알림 전용** 쓰레드야.\n"
+                f"등록된 발신자에게 메일이 오면 여기에 요약해서 알려줄게!\n\n"
+                f"**시작 방법:**\n"
+                f"1. `/이메일설정` — 네이버 계정 연동\n"
+                f"2. `/발신자추가` — 알림 받을 발신자 등록"
+            )
 
             await thread.send(
                 f"안녕, {interaction.user.mention}! 🥚\n"

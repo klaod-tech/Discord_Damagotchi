@@ -1,9 +1,10 @@
 """
 cogs/settings.py — 설정 변경
 ⚙️ 설정 버튼 클릭 → SettingsSubView (하위 메뉴)
-  [👤 내 정보]   → InfoModal (이름, 목표체중)
-  [📍 위치 설정] → CityModal (거주 도시)
-  [⏰ 시간 설정] → TimeStep1View
+  Row 0: [👤 내 정보]   → InfoModal (이름, 목표체중)
+          [📍 위치 설정] → CityModal (거주 도시)
+          [⏰ 시간 설정] → TimeStep1View
+  Row 1: [📧 이메일 설정] → EmailSetupModal (네이버 계정 연동)
 """
 import discord
 from discord.ext import commands
@@ -154,6 +155,11 @@ class SettingsSubView(discord.ui.View):
             view=TimeStep1View(user_id=str(interaction.user.id)),
             ephemeral=True,
         )
+
+    @discord.ui.button(label="📧 이메일 설정", style=discord.ButtonStyle.secondary, row=1)
+    async def email_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        from cogs.email_monitor import EmailSetupModal
+        await interaction.response.send_modal(EmailSetupModal())
 
 
 # ══════════════════════════════════════════════════════

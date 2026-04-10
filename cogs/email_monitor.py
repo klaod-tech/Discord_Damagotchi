@@ -173,13 +173,13 @@ class EmailMonitorCog(commands.Cog):
         if not new_emails:
             return
 
-        # 유저 쓰레드 가져오기
-        user_data = get_user(user_id)
-        thread_id = user_data.get("thread_id") if user_data else None
-        thread    = None
-        if thread_id:
+        # 메일 전용 쓰레드 가져오기
+        user_data       = get_user(user_id)
+        mail_thread_id  = user_data.get("mail_thread_id") if user_data else None
+        thread          = None
+        if mail_thread_id:
             for guild in self.bot.guilds:
-                thread = guild.get_thread(int(thread_id))
+                thread = guild.get_thread(int(mail_thread_id))
                 if thread:
                     break
 

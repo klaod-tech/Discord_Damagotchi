@@ -105,7 +105,12 @@ def init_db():
     """)
 
     # 이메일 컬럼 마이그레이션 (v3.0)
-    for col, col_type in [("naver_email", "TEXT"), ("naver_app_pw", "TEXT"), ("email_last_uid", "INTEGER")]:
+    for col, col_type in [
+        ("naver_email",    "TEXT"),
+        ("naver_app_pw",   "TEXT"),
+        ("email_last_uid", "INTEGER"),
+        ("mail_thread_id", "TEXT"),      # 메일 전용 쓰레드 ID
+    ]:
         cur.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {col_type}")
 
     # 알림 받을 발신자 목록
@@ -431,6 +436,18 @@ def add_badges(user_id: str, badge_ids: list):
 
 
 # ===== Email CRUD =====
+
+def set_mail_thread_id(user_id: str, thread_id: str):
+    """메일 전용 쓰레드 ID 저장"""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET mail_thread_id = %s WHERE user_id = %s",
+        (thread_id, user_id),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
 
 def set_email_credentials(user_id: str, naver_email: str, naver_app_pw: str):
     """네이버 이메일 계정 정보 저장"""
