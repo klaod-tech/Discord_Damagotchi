@@ -1,4 +1,4 @@
-# 진행 상황 (v2.8 기준 — 2026-04-07)
+# 진행 상황 (v3.0 기준 — 2026-04-12)
 
 ## 구현 완료
 
@@ -7,7 +7,7 @@
 | `utils/db.py` | Supabase CRUD (users/tamagotchi/meals/weather_log/weight_log), gender/age/height 컬럼 추가, create_user/create_tamagotchi UPSERT 전환 (재등록 시 ML 데이터 보존) | ✅ 완료 |
 | `utils/gpt.py` | GPT-4o 래퍼 (칼로리 계산, 식사 분석, 자연어 파싱, 대사 생성), 캐릭터 프롬프트 일반화 | ✅ 완료 |
 | `utils/image.py` | 이미지 선택 로직 (우선순위 5단계, 11종 이미지) | ✅ 완료 |
-| `utils/embed.py` | 메인 Embed + 6개 버튼 (2행) + MealInputSelectView (텍스트/사진 선택) + MealInputModal + _send_daily_analysis, 칼로리 0 저장 차단, 식사 중복 제출 방지 (`_meal_submitting`) | ✅ 완료 |
+| `utils/embed.py` | 메인 Embed + 5개 버튼 (2행) + MealInputSelectView + MealInputModal + daily_button(하루 정리 통합), 칼로리 0 저장 차단, 식사 중복 제출 방지 (`_meal_submitting`) | ✅ 완료 (v2.9) |
 | `utils/ml.py` | 칼로리 보정 모델 (양 표현 즉시 + Ridge/RF 개인화) | ✅ 완료 |
 | `utils/pattern.py` | 식습관 패턴 분석 (5가지 패턴 탐지) | ✅ 완료 |
 | `utils/gpt_ml_bridge.py` | ML 결과 → GPT 주입 브릿지 | ✅ 완료 |
@@ -16,12 +16,14 @@
 | `cogs/meal.py` | 사진 입력 2경로 (버튼 60초 대기 / 직접 업로드), _build_analysis_embed 헬퍼, MealPhotoCog.waiting 상태 관리, 칼로리 0 저장 차단 | ✅ 완료 |
 | `cogs/summary.py` | 오늘 요약 (칼로리/탄단지/끼니별/GPT 코멘트) | ✅ 완료 |
 | `cogs/weather.py` | 기상청+에어코리아 API, wake_time 기반 스케줄러 | ✅ 완료 |
-| `cogs/settings.py` | 설정 변경 Modal (이름/도시/목표체중), 칼로리 재계산 시 DB 값 사용 | ✅ 완료 |
+| `cogs/settings.py` | SettingsSubView (내 정보/위치/시간/이메일 설정 하위 메뉴), EmailSubView (발신자 추가/목록/삭제/수정), SenderDeleteSelect (드롭다운 삭제) | ✅ 완료 (v2.9~v3.0) |
 | `cogs/weight.py` | 체중 기록, 달성률 바, 목표 달성 판정 | ✅ 완료 |
 | `cogs/scheduler.py` | 오후 10시 칼로리 판정, 매시간 hunger 감소, 유저별 식사 알림 3단계 Job, 매주 일요일 03:00 ML 재학습, 일요일 08:00 주간 리포트, 스트릭/배지 nightly 체크 | ✅ 완료 |
 | `utils/badges.py` | 배지 7종 정의, 스트릭·DB 기반 신규 배지 체크 로직 | ✅ 완료 |
 | `utils/nutrition.py` | 식약처 식품영양성분 DB API 래퍼, 1회 제공량 기준 칼로리/영양소 계산, 실패 시 None 반환 | ✅ 완료 (v2.8) |
-| `bot.py` | 봇 진입점, 8개 cog 로드, on_ready 시 전체 유저 식사 알림 Job 등록, 커맨드 실행 로깅 | ✅ 완료 |
+| `bot.py` | 봇 진입점, 9개 cog 로드, on_ready 중복 실행 방지(_bot_ready 플래그), 전체 유저 식사 알림 Job 등록, 커맨드 실행 로깅 | ✅ 완료 (v2.9) |
+| `cogs/email_monitor.py` | EmailMonitorCog — APScheduler 5분 IMAP 폴링, 스팸 필터, 등록 발신자 알림, GPT 요약, 메일 스레드 자동 생성, 슬래시 커맨드 (/이메일설정 /발신자추가 /발신자목록 /발신자삭제) | ✅ 완료 (v3.0) |
+| `utils/mail.py` | IMAP fetch_new_emails(), 스팸 키워드 필터(is_spam()), SMTP send_email(), 헤더 디코딩 헬퍼 | ✅ 완료 (v3.0) |
 | `requirements.txt` | psycopg2-binary 추가 | ✅ 완료 |
 
 ---
@@ -33,11 +35,11 @@
 - `.env` → 플랫폼 시크릿 이전
 - `develop` → `main` 머지 후 배포
 
-### v2.8 — 신규 기능 (설계 중)
+### 다음 — 미구현 기능
 상세 내용: [`07_NEXT_FEATURES.md`](07_NEXT_FEATURES.md)
-- **버튼 UI 개편**: 오늘 요약 + 오늘 일정 → `📋 하루 정리` 통합 / 설정 하위 메뉴 구조화
-- **n8n 음식 추천**: `🍜 뭐 먹고 싶어?` 버튼 → n8n 웹훅 POST → 위치·식사이력 기반 추천
+- **n8n 음식 추천**: `🍜 뭐 먹고 싶어?` 버튼 → n8n 웹훅 POST → 위치·식사이력 기반 추천 (현재 "준비 중" 표시)
 - **위치 정보 상세화**: 음식 추천용 구/동 단위 주소 필드 추가 (옵션 결정 중)
+- **호스팅 배포**: Railway / Render / VPS 선택 후 배포
 
 ---
 

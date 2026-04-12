@@ -22,7 +22,7 @@ from utils.db import (
     get_email_users, get_email_senders,
     set_email_credentials, add_email_sender,
     remove_email_sender, update_email_last_uid,
-    save_email_log, get_user,
+    save_email_log, get_user, set_mail_thread_id,
 )
 from utils.mail import fetch_new_emails
 from utils.gpt import summarize_email
@@ -65,9 +65,37 @@ class EmailSetupModal(discord.ui.Modal, title="📧 이메일 설정"):
                 return
 
             set_email_credentials(user_id, naver_id, app_pw)
+
+            # 메일 전용 스레드가 없으면 자동 생성
+            user_data = get_user(user_id)
+            if not user_data or not user_data.get("mail_thread_id"):
+                # 타마고치 스레드의 부모 채널 찾기
+                parent_channel = None
+                tama_thread_id = user_data.get("thread_id") if user_data else None
+                if tama_thread_id:
+                    for guild in interaction.client.guilds:
+                        t = guild.get_thread(int(tama_thread_id))
+                        if t:
+                            parent_channel = t.parent
+                            break
+                if not parent_channel:
+                    parent_channel = interaction.channel
+
+                mail_thread = await parent_channel.create_thread(
+                    name=f"📧 {interaction.user.display_name}의 메일함",
+                    auto_archive_duration=10080,
+                    invitable=False,
+                )
+                set_mail_thread_id(user_id, str(mail_thread.id))
+                await mail_thread.send(
+                    f"📬 안녕, **{interaction.user.display_name}**!\n"
+                    f"여기는 **메일 알림 전용 스레드**야.\n"
+                    f"등록된 발신자에게서 메일이 오면 여기서 바로 알려줄게 ✉️"
+                )
+
             await interaction.followup.send(
                 f"✅ **{naver_id}@naver.com** 연결 완료!\n"
-                f"이제 `/발신자추가`로 알림 받을 발신자를 등록해봐 📬",
+                f"이제 `📬 발신자 추가` 버튼으로 알림 받을 발신자를 등록해봐 📬",
                 ephemeral=True,
             )
         except Exception as e:

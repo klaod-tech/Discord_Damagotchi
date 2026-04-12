@@ -1,14 +1,14 @@
 # 기능 흐름 (Flows)
 
-## 메인 Embed UI
+## 메인 Embed UI (v2.9~)
 
 ```
 [다마고치 이미지 — 파일 첨부로 크게 표시]
 ──────────────────────────────────────
 [Embed] {tamagotchi_name}의 하루 · "GPT 대사"
 
-Row 0: [ 🍽️ 식사 입력 ] [ 📊 오늘 요약 ] [ 📅 오늘 일정 ]
-Row 1: [ ⚙️ 설정 변경 ] [ ⏰ 시간 설정 ] [ ⚖️ 체중 기록 ]
+Row 0: [ 🍽️ 식사 입력 ] [ 📋 하루 정리 ] [ 🍜 뭐 먹고 싶어? ]
+Row 1: [ ⚙️ 설정 ]      [ ⚖️ 체중 기록 ]
 ```
 
 > 이미지는 `file=img_file`로 첨부 전송되어 embed 위에 크게 표시됨.  
@@ -19,10 +19,9 @@ Row 1: [ ⚙️ 설정 변경 ] [ ⏰ 시간 설정 ] [ ⚖️ 체중 기록 ]
 | 버튼 | 동작 | 출력 |
 |------|------|------|
 | 🍽️ 식사 입력 | MealInputSelectView (텍스트/사진 선택) | 텍스트 → MealInputModal / 사진 → 60초 대기 후 GPT Vision 분석 |
-| 📊 오늘 요약 | Ephemeral | 총칼로리/탄단지/끼니별 내역/GPT 코멘트 |
-| 📅 오늘 일정 | Ephemeral | 목표칼로리/체중현황(ML)/식사알림시간/날씨(도시명 포함)/GPT 코멘트 |
-| ⚙️ 설정 변경 | SettingsModal | 이름/도시/목표체중 변경 |
-| ⏰ 시간 설정 | TimeStep1View | Select Menu 2단계 → 기상/식사 알림 시간 변경 |
+| 📋 하루 정리 | Ephemeral | 칼로리현황/탄단지/끼니내역/체중현황/날씨/식사알림/GPT 한마디 — 7개 필드 통합 |
+| 🍜 뭐 먹고 싶어? | Ephemeral | "준비 중" (n8n 연동 예정) |
+| ⚙️ 설정 | SettingsSubView (Ephemeral) | 하위 메뉴: 내 정보 / 위치 설정 / 시간 설정 / 이메일 설정 |
 | ⚖️ 체중 기록 | WeightInputModal | 체중 입력 → DB 저장 → 목표 달성 판정 → Embed 갱신 |
 
 ---
@@ -187,17 +186,60 @@ APScheduler → 유저별 wake_time 도달
 
 ---
 
-## 설정 변경 흐름
+## 설정 변경 흐름 (v2.9~)
 
 ```
-[⚙️ 설정 변경] 클릭
-  → SettingsModal (현재 값이 미리 채워짐)
-    fields: 다마고치 이름, 거주 도시, 목표 체중
-    ※ 시간 설정은 [⏰ 시간 설정] 버튼에서 별도 진행
-  → 변경 감지 후:
+[⚙️ 설정] 클릭
+  → SettingsSubView (Ephemeral)
+    Row 0: [👤 내 정보] [📍 위치 설정] [⏰ 시간 설정]
+    Row 1: [📧 이메일 설정]
+
+  [👤 내 정보] → InfoModal (이름, 목표체중)
     - 이름 변경 → DB + 쓰레드 이름 변경
-    - 도시 변경 → DB 업데이트
-    - 목표 체중 변경 → DB + GPT 권장 칼로리 재계산
+    - 목표체중 변경 → DB + GPT 권장 칼로리 재계산
+
+  [📍 위치 설정] → CityModal (거주 도시)
+    - 도시 변경 → DB 업데이트 (날씨 API에 즉시 반영)
+
+  [⏰ 시간 설정] → TimeStep1View (Select Menu 2단계)
+
+  [📧 이메일 설정] → EmailSubView (Ephemeral)
+    Row 0: [📬 발신자 추가] [📋 발신자 목록] [🗑️ 발신자 삭제]
+    Row 1: [✏️ 이메일 수정]
+
+    [📬 발신자 추가] → SenderAddModal (이메일 + 별명)
+    [📋 발신자 목록] → Ephemeral Embed (등록된 발신자 목록)
+    [🗑️ 발신자 삭제] → SenderDeleteView (Select 드롭다운 → 선택 즉시 삭제)
+    [✏️ 이메일 수정] → EmailSetupModal (네이버 아이디 + 앱 비밀번호)
+                       ※ mail_thread_id 없으면 메일 스레드 자동 생성
+```
+
+---
+
+## 이메일 모니터링 흐름 (v3.0~)
+
+```
+[APScheduler 5분 간격] → EmailMonitorCog._poll_all_users()
+  → get_email_users(): naver_email/naver_app_pw 설정된 유저 전체 조회
+  → 유저별 _poll_user() 실행
+
+_poll_user(user):
+  → fetch_new_emails() [IMAP, executor 오프로드]
+      imap.naver.com:993 / INBOX
+      email_last_uid 이후의 메일만 조회
+      → is_spam(subject): [광고][AD][홍보][이벤트][공지] 등 키워드 필터
+      → 등록된 발신자(email_senders)에 해당하는 메일만 반환
+  → 새 메일 있으면:
+      → update_email_last_uid() — 중복 처리 방지
+      → summarize_email(subject, body) — GPT 3줄 요약 (ML 학습 데이터)
+      → save_email_log() — email_log 테이블에 저장
+      → mail_thread에 Embed 전송:
+          제목 / 보낸 사람(별명) / GPT 요약
+
+스팸 필터 3단계:
+  1. 네이버 INBOX만 조회 (스팸함 제외)
+  2. 제목 키워드 필터 ([광고], [AD], [홍보], [이벤트], [공지], 수신거부, 무료수신거부, Unsubscribe)
+  3. 등록된 발신자 화이트리스트 (등록되지 않은 발신자 무시)
 ```
 
 ---

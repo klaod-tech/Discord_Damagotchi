@@ -4,7 +4,11 @@ cogs/settings.py — 설정 변경
   Row 0: [👤 내 정보]   → InfoModal (이름, 목표체중)
           [📍 위치 설정] → CityModal (거주 도시)
           [⏰ 시간 설정] → TimeStep1View
-  Row 1: [📧 이메일 설정] → EmailSetupModal (네이버 계정 연동)
+  Row 1: [📧 이메일 설정] → EmailSubView
+           ├ [📬 발신자 추가] → SenderAddModal
+           ├ [📋 발신자 목록] → embed 표시
+           ├ [🗑️ 발신자 삭제] → SenderDeleteView (Select 드롭다운)
+           └ [✏️ 이메일 수정] → EmailSetupModal
 """
 import discord
 from discord.ext import commands
@@ -130,11 +134,101 @@ class CityModal(discord.ui.Modal, title="📍 위치 설정"):
 
 
 # ══════════════════════════════════════════════════════
+# 발신자 삭제 — Select 드롭다운
+# ══════════════════════════════════════════════════════
+class SenderDeleteSelect(discord.ui.Select):
+    def __init__(self, user_id: str, senders: list):
+        self._user_id = user_id
+        options = [
+            discord.SelectOption(
+                label=row["nickname"],
+                description=row["sender_email"],
+                value=row["sender_email"],
+            )
+            for row in senders
+        ]
+        super().__init__(
+            placeholder="삭제할 발신자를 선택해줘",
+            min_values=1,
+            max_values=1,
+            options=options,
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        from utils.db import remove_email_sender
+        target = self.values[0]
+        remove_email_sender(self._user_id, target)
+        await interaction.response.send_message(
+            f"🗑️ **{target}** 발신자가 삭제됐어!", ephemeral=True
+        )
+
+
+class SenderDeleteView(discord.ui.View):
+    def __init__(self, user_id: str, senders: list):
+        super().__init__(timeout=300)
+        self.add_item(SenderDeleteSelect(user_id, senders))
+
+
+# ══════════════════════════════════════════════════════
+# 이메일 하위 메뉴 View
+# ══════════════════════════════════════════════════════
+class EmailSubView(discord.ui.View):
+    def __init__(self, user_id: str):
+        super().__init__(timeout=300)
+        self._user_id = user_id
+
+    @discord.ui.button(label="📬 발신자 추가", style=discord.ButtonStyle.primary, row=0)
+    async def sender_add_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        from cogs.email_monitor import SenderAddModal
+        await interaction.response.send_modal(SenderAddModal())
+
+    @discord.ui.button(label="📋 발신자 목록", style=discord.ButtonStyle.secondary, row=0)
+    async def sender_list_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        from utils.db import get_email_senders
+        senders = get_email_senders(self._user_id)
+        if not senders:
+            await interaction.response.send_message(
+                "등록된 발신자가 없어!\n`📬 발신자 추가` 버튼으로 추가해봐.", ephemeral=True
+            )
+            return
+        lines = [
+            f"`{i+1}.` **{row['nickname']}** — `{row['sender_email']}`"
+            for i, row in enumerate(senders)
+        ]
+        embed = discord.Embed(
+            title="📋 등록된 발신자 목록",
+            description="\n".join(lines),
+            color=0x5865F2,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="🗑️ 발신자 삭제", style=discord.ButtonStyle.danger, row=0)
+    async def sender_delete_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        from utils.db import get_email_senders
+        senders = get_email_senders(self._user_id)
+        if not senders:
+            await interaction.response.send_message(
+                "등록된 발신자가 없어!\n먼저 `📬 발신자 추가`로 등록해줘.", ephemeral=True
+            )
+            return
+        await interaction.response.send_message(
+            "🗑️ **발신자 삭제** — 삭제할 발신자를 선택해줘",
+            view=SenderDeleteView(user_id=self._user_id, senders=senders),
+            ephemeral=True,
+        )
+
+    @discord.ui.button(label="✏️ 이메일 수정", style=discord.ButtonStyle.secondary, row=1)
+    async def email_edit_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        from cogs.email_monitor import EmailSetupModal
+        await interaction.response.send_modal(EmailSetupModal())
+
+
+# ══════════════════════════════════════════════════════
 # 설정 하위 메뉴 View
 # ══════════════════════════════════════════════════════
 class SettingsSubView(discord.ui.View):
     def __init__(self, user: dict):
-        super().__init__(timeout=60)
+        super().__init__(timeout=300)
         self._user = user
 
     @discord.ui.button(label="👤 내 정보", style=discord.ButtonStyle.primary, row=0)
@@ -158,8 +252,11 @@ class SettingsSubView(discord.ui.View):
 
     @discord.ui.button(label="📧 이메일 설정", style=discord.ButtonStyle.secondary, row=1)
     async def email_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        from cogs.email_monitor import EmailSetupModal
-        await interaction.response.send_modal(EmailSetupModal())
+        await interaction.response.send_message(
+            "📧 **이메일 설정** — 아래에서 원하는 항목을 선택해줘!",
+            view=EmailSubView(user_id=str(interaction.user.id)),
+            ephemeral=True,
+        )
 
 
 # ══════════════════════════════════════════════════════

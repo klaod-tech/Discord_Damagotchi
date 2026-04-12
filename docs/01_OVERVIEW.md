@@ -44,7 +44,12 @@ TAMAGOTCHI_CHANNEL_ID  # #다마고치 채널 ID
 FOOD_API_KEY           # 공공데이터포털 인증키 (식약처 식품영양성분 DB)
                        # data.go.kr → 식품의약품안전처_식품영양성분 DB 정보 신청
                        # WEATHER_API_KEY와 동일한 포털 키 사용 가능
+NAVER_MAIL_ID          # 봇 발신용 네이버 아이디 (현재 미사용 / 향후 시스템 메일 발송 예정)
+NAVER_MAIL_PW          # 봇 발신용 네이버 앱 비밀번호 (현재 미사용)
 ```
+
+> **이메일 수신 모니터링용 계정**은 .env가 아닌 각 유저가 디스코드 버튼(✏️ 이메일 수정)으로
+> 직접 입력 → Supabase `users.naver_email / naver_app_pw` 에 per-user 저장.
 
 ---
 
@@ -54,7 +59,8 @@ FOOD_API_KEY           # 공공데이터포털 인증키 (식약처 식품영양
 #다마고치 채널 (일반 채팅 불가, 봇만 허용)
 ├── [고정 메시지] 시작하기 Embed → 버튼: [🐣 다마고치 시작하기]
 └── 쓰레드 목록 (유저별 전용)
-    ├── {tamagotchi_name}의 다마고치 → 유저A 전용
+    ├── {username}의 {tamagotchi_name}  → 식사·날씨·일정·배지 알림 전용 (thread_id)
+    ├── 📧 {username}의 메일함          → 이메일 알림 전용 (mail_thread_id) — v3.0
     └── ...
 ```
 
@@ -83,6 +89,8 @@ FOOD_API_KEY           # 공공데이터포털 인증키 (식약처 식품영양
 | v2.6 | 2026-04-03 | ML 재학습 스케줄러 등록 (매주 일요일 03:00 retrain_all_users) |
 | v2.7 | 2026-04-04 | 스트릭 + 도전과제 배지 7종 (utils/badges.py), 주간 리포트 (일요일 08:00 자동 발송), users 테이블 streak/max_streak/badges 컬럼 추가 |
 | v2.8 | 2026-04-07 | 식약처 식품영양성분 DB API 연동 (utils/nutrition.py), 칼로리 분석 식약처 우선→GPT fallback 구조, UPSERT 재등록 (ML 데이터 보존), 식사 중복 제출 방지, 온보딩 입력 오류 안내 개선 |
+| v2.9 | 2026-04-11 | UI 개편 — 버튼 6→5개, 하루 정리 통합(오늘 요약+오늘 일정), 설정 하위 메뉴(SettingsSubView), on_ready 중복 실행 방지(_bot_ready 플래그) |
+| v3.0 | 2026-04-12 | 이메일 모니터링 — IMAP 폴링(5분), 스팸 필터, 등록 발신자 알림, GPT 요약, 전용 메일 스레드 자동 생성, 이메일 설정 하위 메뉴(발신자 추가/목록/삭제/수정) |
 
 ---
 

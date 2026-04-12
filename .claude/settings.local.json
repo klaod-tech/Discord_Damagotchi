@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git fetch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('utils/embed.py'\\).read\\(\\)\\); print\\('embed.py OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('cogs/settings.py'\\).read\\(\\)\\); print\\('settings.py OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('utils/embed.py', encoding='utf-8'\\).read\\(\\)\\); print\\('embed.py OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('cogs/settings.py', encoding='utf-8'\\).read\\(\\)\\); print\\('settings.py OK'\\)\")",
+      "Bash(python -c ':*)"
+    ]
+  }
+}
