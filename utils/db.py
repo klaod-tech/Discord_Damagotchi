@@ -449,13 +449,13 @@ def set_mail_thread_id(user_id: str, thread_id: str):
     cur.close()
     conn.close()
 
-def set_email_credentials(user_id: str, naver_email: str, naver_app_pw: str):
+def set_email_credentials(user_id: str, naver_email: str, naver_app_pw: str, initial_uid: int = 0):
     """네이버 이메일 계정 정보 저장"""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute(
-        "UPDATE users SET naver_email = %s, naver_app_pw = %s, email_last_uid = 0 WHERE user_id = %s",
-        (naver_email, naver_app_pw, user_id),
+        "UPDATE users SET naver_email = %s, naver_app_pw = %s, email_last_uid = %s WHERE user_id = %s",
+        (naver_email, naver_app_pw, initial_uid, user_id),
     )
     conn.commit()
     cur.close()

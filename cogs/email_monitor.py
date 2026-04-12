@@ -1,10 +1,10 @@
 """
-cogs/email_monitor.py — 이메일 수신 모니터링
+cogs/email_monitor.py — 이메일 수신 모니터링 (메일봇 전용)
 
-스케줄: 5분마다 전체 이메일 설정 유저 폴링
+스케줄: 1분마다 전체 이메일 설정 유저 폴링
 흐름:
   IMAP 수신 → 스팸 필터 → 등록 발신자 확인
-  → GPT 요약 → Discord 쓰레드 알림 → email_log 저장
+  → GPT 요약 → Discord 스레드 알림 → email_log 저장
 
 슬래시 커맨드:
   /이메일설정   — Naver 계정 + 앱 비밀번호 등록
@@ -20,128 +20,11 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from utils.db import (
     get_email_users, get_email_senders,
-    set_email_credentials, add_email_sender,
-    remove_email_sender, update_email_last_uid,
-    save_email_log, get_user, set_mail_thread_id,
+    update_email_last_uid, save_email_log, get_user,
 )
+from utils.email_ui import EmailSetupModal, SenderAddModal
 from utils.mail import fetch_new_emails
 from utils.gpt import summarize_email
-
-
-# ══════════════════════════════════════════════════════
-# 이메일 설정 Modal
-# ══════════════════════════════════════════════════════
-class EmailSetupModal(discord.ui.Modal, title="📧 이메일 설정"):
-    naver_id = discord.ui.TextInput(
-        label="네이버 아이디",
-        placeholder="예: klaod  (@naver.com 제외)",
-        max_length=30,
-    )
-    app_pw = discord.ui.TextInput(
-        label="앱 비밀번호",
-        placeholder="네이버 보안설정 → 2단계 인증 → 앱 비밀번호",
-        max_length=20,
-    )
-
-    async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True, thinking=True)
-        try:
-            user_id   = str(interaction.user.id)
-            naver_id  = self.naver_id.value.strip().replace("@naver.com", "")
-            app_pw    = self.app_pw.value.strip()
-
-            # IMAP 연결 테스트
-            import imaplib
-            try:
-                mail = imaplib.IMAP4_SSL("imap.naver.com", 993)
-                mail.login(naver_id, app_pw)
-                mail.logout()
-            except imaplib.IMAP4.error:
-                await interaction.followup.send(
-                    "❌ 로그인 실패!\n아이디 또는 앱 비밀번호를 확인해줘.\n"
-                    "앱 비밀번호는 네이버 **보안설정 → 2단계 인증 → 앱 비밀번호**에서 발급받을 수 있어.",
-                    ephemeral=True,
-                )
-                return
-
-            set_email_credentials(user_id, naver_id, app_pw)
-
-            # 메일 전용 스레드가 없으면 자동 생성
-            user_data = get_user(user_id)
-            if not user_data or not user_data.get("mail_thread_id"):
-                # 타마고치 스레드의 부모 채널 찾기
-                parent_channel = None
-                tama_thread_id = user_data.get("thread_id") if user_data else None
-                if tama_thread_id:
-                    for guild in interaction.client.guilds:
-                        t = guild.get_thread(int(tama_thread_id))
-                        if t:
-                            parent_channel = t.parent
-                            break
-                if not parent_channel:
-                    parent_channel = interaction.channel
-
-                mail_thread = await parent_channel.create_thread(
-                    name=f"📧 {interaction.user.display_name}의 메일함",
-                    auto_archive_duration=10080,
-                    invitable=False,
-                )
-                set_mail_thread_id(user_id, str(mail_thread.id))
-                await mail_thread.send(
-                    f"📬 안녕, **{interaction.user.display_name}**!\n"
-                    f"여기는 **메일 알림 전용 스레드**야.\n"
-                    f"등록된 발신자에게서 메일이 오면 여기서 바로 알려줄게 ✉️"
-                )
-
-            await interaction.followup.send(
-                f"✅ **{naver_id}@naver.com** 연결 완료!\n"
-                f"이제 `📬 발신자 추가` 버튼으로 알림 받을 발신자를 등록해봐 📬",
-                ephemeral=True,
-            )
-        except Exception as e:
-            print(f"[EmailSetupModal 오류] {e}")
-            await interaction.followup.send(f"❌ 오류: {e}", ephemeral=True)
-
-
-# ══════════════════════════════════════════════════════
-# 발신자 추가 Modal
-# ══════════════════════════════════════════════════════
-class SenderAddModal(discord.ui.Modal, title="📬 발신자 등록"):
-    sender_email = discord.ui.TextInput(
-        label="발신자 이메일",
-        placeholder="예: boss@company.com",
-        max_length=100,
-    )
-    nickname = discord.ui.TextInput(
-        label="별명 (구분용)",
-        placeholder="예: 사장님, 학교, 팀장",
-        max_length=20,
-    )
-
-    async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-        user_id      = str(interaction.user.id)
-        sender_email = self.sender_email.value.strip().lower()
-        nickname     = self.nickname.value.strip()
-
-        # 기본 이메일 형식 검증
-        if "@" not in sender_email or "." not in sender_email.split("@")[-1]:
-            await interaction.followup.send(
-                "❌ 이메일 형식이 올바르지 않아!\n예: `boss@company.com`", ephemeral=True
-            )
-            return
-
-        success = add_email_sender(user_id, sender_email, nickname)
-        if success:
-            await interaction.followup.send(
-                f"✅ **{nickname}** (`{sender_email}`) 등록 완료!\n"
-                f"앞으로 이 주소에서 메일이 오면 여기에 알려줄게 📩",
-                ephemeral=True,
-            )
-        else:
-            await interaction.followup.send(
-                f"⚠️ `{sender_email}` 은 이미 등록된 발신자야!", ephemeral=True
-            )
 
 
 # ══════════════════════════════════════════════════════
@@ -155,13 +38,13 @@ class EmailMonitorCog(commands.Cog):
         self.scheduler.add_job(
             self._poll_all_users,
             trigger="interval",
-            minutes=5,
+            minutes=1,
             id="email_poll",
         )
         self.scheduler.start()
-        print("[이메일] 모니터링 스케줄러 시작 (5분 간격)")
+        print("[이메일] 모니터링 스케줄러 시작 (1분 간격)")
 
-    # ── 5분마다 전체 유저 폴링 ────────────────────────
+    # ── 1분마다 전체 유저 폴링 ────────────────────────
     async def _poll_all_users(self):
         users = get_email_users()
         if not users:
@@ -175,15 +58,14 @@ class EmailMonitorCog(commands.Cog):
         app_pw    = user.get("naver_app_pw", "")
         last_uid  = int(user.get("email_last_uid") or 0)
 
-        senders_rows   = get_email_senders(user_id)
-        registered     = [row["sender_email"] for row in senders_rows]
-        nickname_map   = {row["sender_email"]: row["nickname"] for row in senders_rows}
+        senders_rows = get_email_senders(user_id)
+        registered   = [row["sender_email"] for row in senders_rows]
+        nickname_map = {row["sender_email"]: row["nickname"] for row in senders_rows}
 
         if not registered:
             return
 
         try:
-            # 새 이메일 fetch (blocking → executor로 오프로드)
             loop = asyncio.get_event_loop()
             new_emails, max_uid = await loop.run_in_executor(
                 None,
@@ -194,17 +76,16 @@ class EmailMonitorCog(commands.Cog):
             print(f"[이메일 폴링 오류] {user_id}: {e}")
             return
 
-        # last_uid 갱신
         if max_uid > last_uid:
             update_email_last_uid(user_id, max_uid)
 
         if not new_emails:
             return
 
-        # 메일 전용 쓰레드 가져오기
-        user_data       = get_user(user_id)
-        mail_thread_id  = user_data.get("mail_thread_id") if user_data else None
-        thread          = None
+        # 메일 전용 스레드 가져오기
+        user_data      = get_user(user_id)
+        mail_thread_id = user_data.get("mail_thread_id") if user_data else None
+        thread         = None
         if mail_thread_id:
             for guild in self.bot.guilds:
                 thread = guild.get_thread(int(mail_thread_id))
@@ -217,28 +98,35 @@ class EmailMonitorCog(commands.Cog):
             nickname     = nickname_map.get(sender_email, sender_name)
             subject      = mail_item["subject"]
             body         = mail_item["body"]
+            sent_at      = mail_item.get("sent_at")
+            sent_at_str  = (
+                sent_at.strftime("%Y년 %m월 %d일 %H:%M")
+                if sent_at else "알 수 없음"
+            )
 
-            # GPT 요약
-            try:
-                summary = await summarize_email(subject, body)
-            except Exception as e:
-                print(f"[이메일 요약 오류] {e}")
-                summary = "요약을 가져오지 못했어요."
+            body_stripped = body.strip()
+            if len(body_stripped) <= 200:
+                summary = body_stripped or "(본문 없음)"
+            else:
+                try:
+                    summary = await summarize_email(subject, body)
+                except Exception as e:
+                    print(f"[이메일 요약 오류] {e}")
+                    summary = "요약을 가져오지 못했어요."
 
-            # email_log 저장 (ML 학습 데이터)
             save_email_log(user_id, sender_email, subject, summary)
 
-            # Discord 쓰레드 알림
             if thread:
                 embed = discord.Embed(
                     title=f"📧 새 메일 — {nickname}",
-                    color=0x03C75A,  # 네이버 그린
+                    color=0x03C75A,
                 )
                 embed.add_field(
                     name="보낸 사람",
                     value=f"{nickname} (`{sender_email}`)",
-                    inline=False,
+                    inline=True,
                 )
+                embed.add_field(name="📅 발송 일시", value=sent_at_str, inline=True)
                 embed.add_field(name="제목", value=subject or "(제목 없음)", inline=False)
                 embed.add_field(name="📝 요약", value=summary, inline=False)
                 embed.set_footer(text="네이버 메일에서 전체 내용을 확인하세요.")
@@ -290,6 +178,7 @@ class EmailMonitorCog(commands.Cog):
     async def sender_remove(self, interaction: discord.Interaction, sender_email: str):
         print(f"[CMD] /발신자삭제 — {interaction.user} / {sender_email}")
         user_id = str(interaction.user.id)
+        from utils.db import remove_email_sender
         success = remove_email_sender(user_id, sender_email.strip())
         if success:
             await interaction.response.send_message(

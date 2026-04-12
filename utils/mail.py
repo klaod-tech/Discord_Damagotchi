@@ -15,8 +15,10 @@ import imaplib
 import smtplib
 import email
 from email.header import decode_header
+from email.utils import parsedate_to_datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from datetime import datetime, timedelta, timezone
 
 NAVER_IMAP_HOST = "imap.naver.com"
 NAVER_IMAP_PORT = 993
@@ -103,9 +105,9 @@ def fetch_new_emails(
         mail.login(naver_id, app_pw)
         mail.select("INBOX")
 
-        # UID last_uid+1 이후 전체 검색
-        search_range = f"{last_uid + 1}:*"
-        _, data = mail.uid("search", None, f"UID {search_range}")
+        # 최근 1일 + last_uid 이후만 검색
+        since_date = (datetime.now() - timedelta(days=1)).strftime("%d-%b-%Y")
+        _, data = mail.uid("search", None, f'SINCE {since_date}')
         uids = data[0].split() if data and data[0] else []
 
         registered_lower = {s.lower() for s in registered_senders}
@@ -129,6 +131,16 @@ def fetch_new_emails(
             sender_email = _extract_sender_email(from_header)
             sender_name  = _extract_sender_name(from_header)
 
+            # 발송 일시 파싱 (KST 변환)
+            sent_at: datetime | None = None
+            date_header = msg.get("Date", "")
+            if date_header:
+                try:
+                    kst = timezone(timedelta(hours=9))
+                    sent_at = parsedate_to_datetime(date_header).astimezone(kst)
+                except Exception:
+                    sent_at = None
+
             # 1단계: 스팸/광고 필터
             if is_spam(subject):
                 print(f"[메일] 광고 필터 차단: '{subject}'")
@@ -147,6 +159,7 @@ def fetch_new_emails(
                 "sender_name":  sender_name,
                 "subject":      subject,
                 "body":         body,
+                "sent_at":      sent_at,
             })
             print(f"[메일] 새 메일 감지 — from: {sender_email} / 제목: {subject}")
 

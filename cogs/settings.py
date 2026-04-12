@@ -179,7 +179,7 @@ class EmailSubView(discord.ui.View):
 
     @discord.ui.button(label="📬 발신자 추가", style=discord.ButtonStyle.primary, row=0)
     async def sender_add_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        from cogs.email_monitor import SenderAddModal
+        from utils.email_ui import SenderAddModal
         await interaction.response.send_modal(SenderAddModal())
 
     @discord.ui.button(label="📋 발신자 목록", style=discord.ButtonStyle.secondary, row=0)
@@ -219,7 +219,7 @@ class EmailSubView(discord.ui.View):
 
     @discord.ui.button(label="✏️ 이메일 수정", style=discord.ButtonStyle.secondary, row=1)
     async def email_edit_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        from cogs.email_monitor import EmailSetupModal
+        from utils.email_ui import EmailSetupModal
         await interaction.response.send_modal(EmailSetupModal())
 
 
