@@ -20,6 +20,7 @@ import time
 from utils.db import (
     get_user, get_tamagotchi, create_meal,
     update_tamagotchi, get_calories_by_date,
+    is_meal_waiting, clear_meal_waiting,
 )
 from utils.gpt import generate_comment
 from utils.gpt_ml_bridge import get_corrected_calories
@@ -358,7 +359,6 @@ class MealPhotoDetectView(discord.ui.View):
 class MealPhotoCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.waiting: dict[str, float] = {}  # user_id -> expiry timestamp (60초)
         print("[MealPhotoCog] 로드 완료")
 
     @commands.Cog.listener()
@@ -393,17 +393,17 @@ class MealPhotoCog(commands.Cog):
         if not user:
             return
 
-        # 본인 전용 쓰레드인지 확인
-        if str(user.get("thread_id", "")) != str(message.channel.id):
+        # 본인 전용 쓰레드인지 확인 (식사 전용 쓰레드 우선, fallback: 메인 쓰레드)
+        allowed_thread_id = user.get("meal_thread_id") or user.get("thread_id")
+        if str(allowed_thread_id or "") != str(message.channel.id):
             return
 
         # 첫 번째 이미지만 처리
         image_url = image_attachments[0].url
 
-        # 사진 입력 대기 중인 유저인지 확인
-        expiry = self.waiting.get(user_id)
-        if expiry and time.time() < expiry:
-            del self.waiting[user_id]
+        # 사진 입력 대기 중인 유저인지 확인 (DB 기반)
+        if is_meal_waiting(user_id):
+            clear_meal_waiting(user_id)
             thinking_msg = await message.channel.send("📸 사진 분석 중... 잠깐만 기다려줘!")
             try:
                 analysis = await analyze_food_image(image_url)

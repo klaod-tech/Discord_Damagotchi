@@ -113,6 +113,15 @@ def init_db():
     ]:
         cur.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {col_type}")
 
+    # 멀티봇 분리 마이그레이션 (v3.2)
+    for col, col_type in [
+        ("meal_thread_id",     "TEXT"),
+        ("weather_thread_id",  "TEXT"),
+        ("weight_thread_id",   "TEXT"),
+        ("meal_waiting_until", "TIMESTAMP"),  # 사진 입력 대기 만료 시각
+    ]:
+        cur.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {col_type}")
+
     # 알림 받을 발신자 목록
     cur.execute("""
         CREATE TABLE IF NOT EXISTS email_senders (
@@ -537,6 +546,84 @@ def save_email_log(user_id: str, sender_email: str, subject: str, summary_gpt: s
     conn.commit()
     cur.close()
     conn.close()
+
+
+# ===== 멀티봇 쓰레드 ID Setters =====
+
+def set_meal_thread_id(user_id: str, thread_id: str):
+    """식사 전용 쓰레드 ID 저장"""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET meal_thread_id = %s WHERE user_id = %s",
+        (thread_id, user_id),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def set_weather_thread_id(user_id: str, thread_id: str):
+    """날씨 전용 쓰레드 ID 저장"""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET weather_thread_id = %s WHERE user_id = %s",
+        (thread_id, user_id),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def set_weight_thread_id(user_id: str, thread_id: str):
+    """체중관리 전용 쓰레드 ID 저장"""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET weight_thread_id = %s WHERE user_id = %s",
+        (thread_id, user_id),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def set_meal_waiting(user_id: str, seconds: int = 60):
+    """사진 입력 대기 만료 시각을 DB에 저장 (now + seconds)"""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET meal_waiting_until = NOW() + INTERVAL '%s seconds' WHERE user_id = %s",
+        (seconds, user_id),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def clear_meal_waiting(user_id: str):
+    """사진 입력 대기 상태 해제"""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET meal_waiting_until = NULL WHERE user_id = %s",
+        (user_id,),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def is_meal_waiting(user_id: str) -> bool:
+    """사진 입력 대기 중인지 확인 (만료 시각이 미래면 True)"""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT meal_waiting_until > NOW() AS waiting FROM users WHERE user_id = %s",
+        (user_id,),
+    )
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    if not row:
+        return False
+    return bool(row["waiting"])
 
 
 def get_weekly_meal_stats(user_id: str, start_date) -> dict:

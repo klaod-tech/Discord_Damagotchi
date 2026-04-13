@@ -296,10 +296,21 @@ class MealInputSelectView(discord.ui.View):
 
     @discord.ui.button(label="📸 사진으로 입력", style=discord.ButtonStyle.secondary, row=0)
     async def photo_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        import time
-        cog = interaction.client.cogs.get("MealPhotoCog")
-        if cog is not None:
-            cog.waiting[str(interaction.user.id)] = time.time() + 60
+        from utils.db import set_meal_waiting, get_user
+        user_id = str(interaction.user.id)
+        user = get_user(user_id)
+        # 식사 전용 쓰레드가 있으면 안내 메시지에 멘션
+        meal_thread_id = user.get("meal_thread_id") if user else None
+        set_meal_waiting(user_id, seconds=60)
+        if meal_thread_id:
+            guild = interaction.guild
+            meal_thread = guild.get_thread(int(meal_thread_id)) if guild else None
+            if meal_thread:
+                await interaction.response.edit_message(
+                    content=f"📸 {meal_thread.mention} 에 음식 사진을 올려줘! (60초 안에)",
+                    view=None,
+                )
+                return
         await interaction.response.edit_message(
             content="📸 지금 이 채팅에 음식 사진을 올려줘! (60초 안에)",
             view=None,

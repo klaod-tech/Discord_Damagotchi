@@ -12,6 +12,9 @@ from utils.db import (
     get_tamagotchi,
     set_thread_id,
     set_mail_thread_id,
+    set_meal_thread_id,
+    set_weather_thread_id,
+    set_weight_thread_id,
 )
 from utils.gpt import calculate_daily_calories, generate_comment
 from utils.embed import create_or_update_embed
@@ -143,6 +146,46 @@ class OnboardingModal(discord.ui.Modal, title="먹구름 시작하기"):
                 f"**시작 방법:**\n"
                 f"1. `/이메일설정` — 네이버 계정 연동\n"
                 f"2. `/발신자추가` — 알림 받을 발신자 등록"
+            )
+
+            # 식사 전용 쓰레드 생성
+            meal_thread = await channel.create_thread(
+                name=f"🍽️ {interaction.user.display_name}의 식사 기록",
+                auto_archive_duration=10080,
+                invitable=False,
+            )
+            set_meal_thread_id(user_id, str(meal_thread.id))
+            await meal_thread.send(
+                f"🍽️ 안녕, {interaction.user.mention}!\n"
+                f"여기는 **식사 기록 전용** 쓰레드야.\n"
+                f"사진을 올리거나 먹은 음식을 말해주면 칼로리를 분석해줄게!"
+            )
+
+            # 날씨 전용 쓰레드 생성
+            weather_thread = await channel.create_thread(
+                name=f"🌤️ {interaction.user.display_name}의 날씨",
+                auto_archive_duration=10080,
+                invitable=False,
+            )
+            set_weather_thread_id(user_id, str(weather_thread.id))
+            await weather_thread.send(
+                f"🌤️ 안녕, {interaction.user.mention}!\n"
+                f"여기는 **날씨 알림 전용** 쓰레드야.\n"
+                f"매일 기상 시간({wake_time})에 날씨와 미세먼지 정보를 알려줄게!"
+            )
+
+            # 체중관리 전용 쓰레드 생성
+            weight_thread = await channel.create_thread(
+                name=f"⚖️ {interaction.user.display_name}의 체중관리",
+                auto_archive_duration=10080,
+                invitable=False,
+            )
+            set_weight_thread_id(user_id, str(weight_thread.id))
+            await weight_thread.send(
+                f"⚖️ 안녕, {interaction.user.mention}!\n"
+                f"여기는 **체중관리 전용** 쓰레드야.\n"
+                f"체중을 기록하면 목표 달성률과 추이를 여기에 보여줄게!\n"
+                f"목표 체중: **{goal_weight}kg**"
             )
 
             await thread.send(

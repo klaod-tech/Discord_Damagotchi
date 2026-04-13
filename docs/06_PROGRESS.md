@@ -1,4 +1,4 @@
-# 진행 상황 (v3.1 기준 — 2026-04-13)
+# 진행 상황 (v3.2 기준 — 2026-04-13)
 
 ## 구현 완료
 
@@ -24,8 +24,11 @@
 | `cogs/email_monitor.py` | 메일봇 전용 — APScheduler **1분** IMAP 폴링, 200자 이하 원문 / 초과 GPT 요약, 발송 일시 embed 표시, 슬래시 커맨드 4종 | ✅ 완료 (v3.1) |
 | `utils/badges.py` | 배지 7종 정의, 스트릭·DB 기반 신규 배지 체크 로직 | ✅ 완료 |
 | `utils/nutrition.py` | 식약처 식품영양성분 DB API 래퍼, fallback GPT | ✅ 완료 (v2.8) |
-| `bot.py` | 먹구름 봇 진입점, 8개 cog 로드 (email_monitor 제외), on_ready 중복 방지 | ✅ 완료 (v3.1) |
-| `bot_mail.py` | 메일봇 전용 진입점, email_monitor 단독 로드, `DISCORD_TOKEN_EMAIL` 사용 | ✅ 완료 (v3.1) |
+| `bot.py` | 먹구름봇 진입점 — weather/meal 제거, weight/onboarding 등 6개 cog | ✅ 완료 (v3.2) |
+| `bot_mail.py` | 메일봇 전용 진입점, email_monitor 단독 로드 | ✅ 완료 (v3.1) |
+| `bot_meal.py` | 식사봇 진입점 — cogs.meal 단독 로드 | ✅ 완료 (v3.2) |
+| `bot_weather.py` | 날씨봇 진입점 — cogs.weather 단독 로드 | ✅ 완료 (v3.2) |
+| `bot_weight.py` | 체중관리봇 진입점 — skeleton (향후 cogs.weight 이전 시 활성화) | 🔄 skeleton |
 
 ---
 
@@ -35,13 +38,13 @@
 - Railway / Render / VPS 중 선택
 - `.env` → 플랫폼 시크릿 이전
 - `develop` → `main` 머지 후 배포
-- **두 봇(bot.py, bot_mail.py) 모두 배포 필요**
+- **4개 봇 프로세스 모두 배포 필요**: bot.py / bot_mail.py / bot_meal.py / bot_weather.py
 
 ### 다음 — 미구현 기능
 상세 내용: [`07_NEXT_FEATURES.md`](07_NEXT_FEATURES.md)
-- **n8n 음식 추천**: `🍜 뭐 먹고 싶어?` 버튼 → n8n 웹훅 POST → 위치·식사이력 기반 추천
-- **봇 추가 분리**: 날씨 전용 봇, 일과 전용 봇 계획 중
-- **호스팅 배포**
+- **일기봇** (v3.3): diary_log 테이블 + 감정 분석 + 식사×감정 데이터 누적
+- **일정봇** (v3.4): schedule_log 테이블 + APScheduler 알림
+- **n8n 음식 추천**: `🍜 뭐 먹고 싶어?` 버튼 → n8n 웹훅 POST
 
 ---
 
@@ -89,6 +92,42 @@
 [P2] 봇 추가 분리 (날씨봇, 일과봇)
   → 먹구름 아키텍처 멀티봇 전환 지속
 ```
+
+---
+
+## v3.2 변경 내역 (2026-04-13)
+
+### 멀티봇 분리 — 식사봇 / 날씨봇 / 체중관리봇
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `utils/db.py` | `meal_thread_id`, `weather_thread_id`, `weight_thread_id`, `meal_waiting_until` 컬럼 마이그레이션 추가 |
+| `utils/db.py` | setter 6개 추가: `set_meal_thread_id`, `set_weather_thread_id`, `set_weight_thread_id`, `set_meal_waiting`, `clear_meal_waiting`, `is_meal_waiting` |
+| `cogs/onboarding.py` | 온보딩 시 전용 쓰레드 3개 추가 생성 (식사 / 날씨 / 체중관리) → 총 5개 |
+| `cogs/weather.py` | `update_weather_for_user()`: `weather_thread_id or thread_id` fallback 적용 |
+| `cogs/weight.py` | 목표 달성 embed 전송: `weight_thread_id or thread_id` fallback 적용 |
+| `utils/embed.py` | `photo_btn`: in-memory dict → `set_meal_waiting()` DB 기록으로 전환. 식사 전용 쓰레드 안내 |
+| `cogs/meal.py` | `on_message`: `meal_thread_id or thread_id` fallback + `is_meal_waiting()` / `clear_meal_waiting()` DB 기반으로 전환 |
+| `bot.py` | `cogs.weather`, `cogs.meal` 제거 (각 전용 봇으로 이전) |
+| `bot_weather.py` | `cogs.weather` 로드 활성화 |
+| `bot_meal.py` | `cogs.meal` 로드 활성화 |
+
+### 설계 핵심 — 봇 간 상태 공유
+
+기존에는 `MealPhotoCog.waiting` 딕셔너리(in-memory)로 사진 대기 상태를 관리했으나,
+봇 프로세스가 분리되면서 cross-process 공유가 불가능해짐.
+→ `users.meal_waiting_until TIMESTAMP` 컬럼으로 이전, DB를 단일 진실 공급원으로 사용.
+
+```
+[먹구름봇] 📸 버튼 → set_meal_waiting(user_id, 60s) → DB 기록
+[식사봇  ] on_message → is_meal_waiting(user_id)    → DB 조회 → 감지
+```
+
+### 기존 유저 호환성 (Backward Compatibility)
+
+온보딩 전 기존 유저는 새 쓰레드 ID가 NULL.
+`weather_thread_id or thread_id` 패턴으로 기존 메인 쓰레드로 자동 fallback.
+새로 온보딩하는 유저부터 전용 쓰레드 5개 생성.
 
 ---
 

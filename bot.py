@@ -24,10 +24,10 @@ COGS = [
     "cogs.settings",
     "cogs.time_settings",
     "cogs.scheduler",
-    "cogs.weather",
-    "cogs.meal",
     "cogs.weight",
-    # email_monitor → bot_mail.py (메일 전용 봇)으로 분리
+    # cogs.weather → bot_weather.py (날씨 전용 봇)으로 분리
+    # cogs.meal   → bot_meal.py   (식사 전용 봇)으로 분리
+    # cogs.email_monitor → bot_mail.py (메일 전용 봇)으로 분리
 ]
 
 # on_ready 중복 실행 방지 플래그 (Discord 재연결 시 on_ready가 재호출됨)

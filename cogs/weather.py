@@ -185,7 +185,7 @@ async def fetch_air(city: str) -> dict:
 async def update_weather_for_user(bot: commands.Bot, user: dict):
     user_id   = str(user.get("user_id", ""))
     city      = user.get("city", "서울")
-    thread_id = user.get("thread_id")
+    thread_id = user.get("weather_thread_id") or user.get("thread_id")
 
     if not thread_id:
         return

@@ -195,9 +195,9 @@ class WeightInputModal(discord.ui.Modal, title="⚖️ 체중 기록"):
 
             await interaction.followup.send(embed=embed, ephemeral=True)
 
-            # 목표 달성 시 Embed 갱신
+            # 목표 달성 시 Embed 갱신 (체중관리 전용 쓰레드 우선, fallback: 메인 쓰레드)
             if goal_achieved:
-                thread_id = user.get("thread_id")
+                thread_id = user.get("weight_thread_id") or user.get("thread_id")
                 if thread_id:
                     guild  = interaction.guild
                     thread = guild.get_thread(int(thread_id))
