@@ -1,6 +1,6 @@
 # 개발 로드맵 및 멀티봇 아키텍처
 
-> last_updated: 2026-04-13 | 현재 버전: v3.1
+> last_updated: 2026-04-13 | 현재 버전: v3.2
 
 ---
 
@@ -16,17 +16,17 @@
 
 ---
 
-## 현재 구조 (v3.1)
+## 현재 구조 (v3.2)
 
 ```
 Discord 서버
-├── #먹구름 채널
-│   ├── 이동욱의 구름2        ← bot.py (먹구름봇)
-│   │     식사 입력 / 하루 정리 / 설정 / 체중
-│   │     날씨 알림 / 칼로리 판정 / 주간 리포트
-│   │
-│   └── 이동욱의 메일함       ← bot_mail.py (메일봇)
-│         IMAP 폴링 / 발신자 알림 / 이메일 요약
+├── #다마고치 채널
+│   └── 쓰레드 (유저별)
+│       ├── {이름}의 구름       ← bot.py (먹구름봇) — 버튼 허브, 설정, 온보딩
+│       ├── 🍽️ {이름}의 식사   ← bot_meal.py (식사봇) — 사진 감지, 칼로리 분석
+│       ├── 🌤️ {이름}의 날씨   ← bot_weather.py (날씨봇) — 기상청/에어코리아
+│       ├── ⚖️ {이름}의 체중   ← bot_weight.py (skeleton)
+│       └── 📧 {이름}의 메일함 ← bot_mail.py (메일봇) — IMAP 폴링
 │
 └── Supabase DB (공유)
 ```
@@ -34,8 +34,10 @@ Discord 서버
 ### 실행
 
 ```bash
-python bot.py       # 먹구름봇 — 식사/날씨/설정/체중
-python bot_mail.py  # 메일봇  — IMAP 폴링/이메일 알림
+python bot.py         # 먹구름봇 — 온보딩/설정/하루정리/체중
+python bot_mail.py    # 메일봇   — IMAP 폴링/이메일 알림
+python bot_meal.py    # 식사봇   — 사진 감지/칼로리 분석
+python bot_weather.py # 날씨봇   — 기상청/에어코리아 스케줄
 ```
 
 ### 환경변수
@@ -44,6 +46,9 @@ python bot_mail.py  # 메일봇  — IMAP 폴링/이메일 알림
 |--------|-----|------|
 | `DISCORD_TOKEN` | bot.py | 먹구름봇 토큰 |
 | `DISCORD_TOKEN_EMAIL` | bot_mail.py | 메일봇 토큰 |
+| `DISCORD_TOKEN_MEAL` | bot_meal.py | 식사봇 토큰 |
+| `DISCORD_TOKEN_WEATHER` | bot_weather.py | 날씨봇 토큰 |
+| `DISCORD_TOKEN_WEIGHT` | bot_weight.py | 체중관리봇 토큰 |
 
 ---
 
