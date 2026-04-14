@@ -217,6 +217,29 @@ written_at  TIMESTAMP DEFAULT NOW()
 
 ---
 
+## task_queue (v4.0 예정 — 미생성)
+
+> 먹구름봇 → 서브봇 단방향 트리거 + 서브봇 → 메인봇 결과 반환 채널.  
+> **식사(meal)는 task_queue 미사용** — 버튼 클릭 기반 기존 흐름 유지.
+
+```sql
+task_id      SERIAL PRIMARY KEY
+bot_target   TEXT NOT NULL           -- 'weight' | 'diary' | 'schedule'
+user_id      TEXT NOT NULL
+payload      TEXT                    -- 유저 발화 원문 JSON (먹구름봇 → 서브봇)
+result_json  TEXT                    -- 처리 결과 JSON (서브봇 → 먹구름봇)
+             -- 체중봇: { "weight": 68.5, "achieved_goal": false, "progress_pct": 72 }
+             -- 일기봇: { "emotion_tag": "슬픔", "comment": "오늘 많이 힘들었구나..." }
+             -- 일정봇: { "title": "병원 예약", "scheduled_at": "2026-04-21T15:00" }
+status       TEXT DEFAULT 'pending'  -- 'pending' | 'done' | 'archived'
+created_at   TIMESTAMP DEFAULT NOW()
+completed_at TIMESTAMP               -- 서브봇이 done 처리한 시각
+```
+
+> **status 흐름**: `pending` → (서브봇 처리) → `done` → (메인봇 수신) → `archived`
+
+---
+
 ## intent_log (v4.0 예정 — 미생성)
 
 > ML 의도 분류기 학습 데이터. 먹구름봇 on_message에서 GPT 분류 시마다 저장.

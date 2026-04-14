@@ -46,28 +46,38 @@ bot_schedule.py 일정봇       일정 등록 · 알림 · 반복               
 
 ### 자연어 트리거 목록
 
-| 발화 예시 | 의도 | 처리 봇 | 응답 위치 |
-|-----------|------|---------|-----------|
-| "점심에 비빔밥 먹었어" | meal | 식사봇 | 전용 채널 (직접 응답) |
-| 사진 직접 업로드 | meal_photo | 식사봇 | 전용 채널 (직접 응답) |
-| "몸무게 68kg" | weight | 체중관리봇 | 전용 채널 (직접 응답) |
-| "오늘 하루 적고 싶어" | diary | 일기봇 | 전용 채널 (직접 응답) |
-| "다음 주 화요일 병원 예약" | schedule | 일정봇 | 전용 채널 (직접) + 알림 쓰레드 (Push) |
+| 발화 예시 | 의도 | 처리 흐름 | 최종 응답 위치 |
+|-----------|------|-----------|-----------|
+| "점심에 비빔밥 먹었어" | meal | 메인봇 → 🍽️ 버튼 제공 → 클릭 후 Modal | 전용 채널 |
+| 사진 직접 업로드 | meal_photo | 식사봇 on_message 감지 → Vision 분석 | 전용 채널 |
+| "몸무게 68kg" | weight | task_queue → 체중봇 처리 → 메인봇 결과 수신 | 전용 채널 |
+| "오늘 하루 적고 싶어" | diary | task_queue → 일기봇 처리 → 메인봇 결과 수신 | 전용 채널 |
+| "다음 주 화요일 병원 예약" | schedule | task_queue → 일정봇 처리 → 메인봇 결과 수신 | 전용 채널 + 알림 쓰레드 (D-day Push) |
 
 ### 오케스트레이터 동작 원리
 
 ```
 먹구름봇 on_message
   → [1단계] GPT-4o 의도 분류 (meal / diary / schedule / weight / none)
-      → task_queue INSERT { bot_target, user_id, payload }
       → intent_log INSERT  ← ML 학습 데이터 축적
-      → 먹구름봇 처리 종료  ← 서브봇 응답 대기 없음
+
+  [meal 감지]
+      → 🍽️ 식사입력 버튼 전송 (task_queue 미사용)
+      → 클릭 → 텍스트: MealInputModal / 사진: 식사봇 on_message 경로
+
+  [diary / schedule / weight 감지]
+      → task_queue INSERT { bot_target, user_id, payload, status: 'pending' }
+      → 먹구름봇: done 항목 폴링 루프 대기
 
 서브봇 폴링 루프 (5~30초)
-  → task_queue SELECT (본인 항목)
+  → task_queue SELECT (본인 항목, status = 'pending')
   → 처리 (GPT 파싱, DB 저장)
-  → personal_channel_id에 직접 응답  ← 메인봇 반환 없음
-  → task_queue status = 'done'
+  → task_queue UPDATE { status: 'done', result_json: { ... } }
+
+먹구름봇 done 폴링
+  → result_json 파싱 → 결과 Embed 빌드
+  → personal_channel_id에 결과 전송 + 캐릭터 Embed 갱신
+  → task_queue status = 'archived'
 
   [2단계, v4.0 이후] ML 의도 분류기 (50건+ 누적 시)
     TF-IDF + LogisticRegression → GPT 의도 분류 대체
