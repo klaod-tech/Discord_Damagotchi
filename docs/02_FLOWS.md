@@ -156,20 +156,16 @@ Row 1: [ ⚙️ 설정 ]      [ ⚖️ 체중 기록 ]
     → Ephemeral: 분석 결과 표시
 ```
 
-### 사진 입력 경로 A — 버튼 경유 — [먹구름봇 → 식사봇]
+### 사진 입력 — 유저 전용 채널 직접 업로드 — [식사봇]
+
+> v4.0부터 식사 사진은 유저 전용 채널(`personal_channel_id`)에 직접 업로드.  
+> 별도 식사 쓰레드 없음. 대기 상태(`meal_waiting`) 기반 버튼 흐름 폐기.
 
 ```
-[먹구름봇] 🍽️ 식사 입력 → [📸 사진으로 입력] 클릭
-  → set_meal_waiting(user_id, now + 60초) → DB 기록
-  → Ephemeral: "식사 쓰레드에 사진을 올려줘! (60초 안에)"
-
-[식사봇] on_message 이벤트 감지
-  → attachment 있는 메시지인지 확인
-  → meal_thread_id or thread_id 에서 올라온 사진인지 확인
-  → is_meal_waiting(user_id) → DB 조회
-  → 감지 시: "📸 사진 분석 중..." 전송
-  → GPT-4o Vision API 호출
-  → clear_meal_waiting(user_id) → DB 초기화
+[식사봇] personal_channel_id에 이미지 첨부 감지
+  → on_message: 이미지 있는 메시지 + personal_channel_id 채널인지 확인
+  → "📸 음식 사진이에요? [✅ 분석하기] [❌ 아니야]"
+  → [✅ 분석하기]: GPT-4o Vision API 호출
   → 분석 결과 Embed + [✅ 기록하기] [❌ 취소]
 
 [✅ 기록하기] 클릭
@@ -177,22 +173,16 @@ Row 1: [ ⚙️ 설정 ]      [ ⚖️ 체중 기록 ]
   → 칼로리 = 0이면 저장 차단
   → DB meals 저장 (input_method='photo')
   → hunger / mood / hp 수치 갱신
-  → 메인 쓰레드 Embed 갱신
+  → personal_channel_id 채널 캐릭터 Embed 갱신
 ```
 
-### 사진 입력 경로 B — 직접 업로드 — [식사봇]
-
-```
-[식사봇] 식사 쓰레드에 이미지 직접 첨부 (대기 상태 없을 때)
-  → on_message 감지: "📸 음식 사진이에요? [✅ 분석하기] [❌ 아니야]"
-  → [✅ 분석하기]: GPT-4o Vision API 호출
-  → 분석 결과 Embed + [✅ 기록하기] [❌ 취소]
-  → 이후 경로 A와 동일
-```
+> **v3.2 하위 호환**: `meal_waiting` 패턴 + `meal_thread_id` fallback은 기존 유저용으로 유지.
 
 ---
 
 ## 날씨 흐름 — [날씨봇]
+
+> **Push 전용 흐름**: 날씨봇은 유저가 요청하지 않아도 자동 전송. 응답 위치 = `info_thread_id`.
 
 ```
 [날씨봇] APScheduler → 유저별 wake_time 도달
@@ -208,9 +198,9 @@ Row 1: [ ⚙️ 설정 ]      [ ⚖️ 체중 기록 ]
       하늘 구름많음         → smile.png
       맑음                  → normal.png
   → DB weather_log 저장
-  → weather_thread_id or thread_id 쓰레드에 날씨 Embed 전송
+  → info_thread_id or thread_id 쓰레드에 날씨 Embed 전송  ← Push 알림 전용 쓰레드
       ※ 수치(기온·PM 수치) 미표시, 캐릭터 이미지+자연어 문장으로만 전달
-  → 메인 쓰레드 캐릭터 Embed: 날씨 기반 이미지로 교체
+  → personal_channel_id 채널 캐릭터 Embed: 날씨 기반 이미지로 교체
 
 새 유저 스케줄 등록:
   → 날씨봇 on_ready: 전체 유저 wake_time 기준 Job 일괄 등록
@@ -242,7 +232,7 @@ _poll_user(user):
       >200자  → GPT 요약 후 Embed
   → email_log 저장
   → update_email_last_uid() → 중복 처리 방지
-  → mail_thread_id or thread_id 쓰레드에 Embed 전송:
+  → mail_thread_id or thread_id 쓰레드에 Embed 전송:  ← Push 전용 쓰레드
       📬 새 메일이 도착했어요!
       ✉️ 발신자: {별명} <{email}>
       📅 발송 일시: YYYY-MM-DD HH:MM (KST)
@@ -272,7 +262,7 @@ _poll_user(user):
       달성: cheer.png, 달성률 100%, 축하 GPT 대사
       미달: 달성률 바 (░░░░░░░░░) + 현재 gap 표시
   → Ephemeral: 체중 변화 + 달성률 + GPT 대사 Embed
-  → (분리 후) weight_thread_id or thread_id 쓰레드에 공개 Embed 전송
+  → (분리 후) personal_channel_id에 직접 응답 (체중은 push가 아닌 유저 요청 응답이므로 채널)
 ```
 
 ---
