@@ -19,13 +19,15 @@
 - Bot 탭 → 토큰 발급
 - `.env`에 `DISCORD_TOKEN_SCHEDULE` 추가
 
-### 0-2. 온보딩 수정 — 일정 쓰레드 추가
+### 0-2. 온보딩 수정 — 일정봇 쓰레드 추가
+
+**v4.0 채널 구조 전환 후**: 유저 전용 채널 안에 일정봇 쓰레드 생성.
 
 ```python
-# cogs/onboarding.py OnboardingModal.on_submit() 수정
+# cogs/onboarding.py — 채널 구조 전환 시 함께 추가
 
-schedule_thread = await channel.create_thread(
-    name=f"{name}의 일정표",
+schedule_thread = await personal_channel.create_thread(
+    name=f"📅 {name}의 일정표",
     auto_archive_duration=10080,   # 7일
     type=discord.ChannelType.public_thread
 )
