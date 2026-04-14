@@ -155,19 +155,44 @@ mail_id = user.get("mail_thread_id") or user.get("thread_id")
 
 ---
 
-## 6. 봇 간 상태 공유 — 사진 입력 흐름
+## 6. 봇 간 통신 — task_queue 패턴
+
+> **핵심 원칙**: 봇 간 직접 HTTP 통신 없음. DB `task_queue` 테이블을 단일 통신 채널로 사용.  
+> 서브봇은 처리 결과를 **메인봇으로 반환하지 않음** — `personal_channel_id`에 직접 응답.
 
 ```
-[먹구름봇] 유저 → [📸 사진으로 입력] 버튼 클릭
-    → utils/embed.py photo_btn:
-        1. get_user(user_id) → meal_thread_id 조회
-        2. set_meal_waiting(user_id, seconds=60)  ← DB에 만료 시각 기록
-        3. "🍽️ 식사 전용 쓰레드에 사진을 올려줘! (60초)" 안내
+[먹구름봇] on_message — 의도 분류 후:
+    1. task_queue INSERT { bot_target: "meal", user_id: ..., payload: {...} }
+    2. intent_log INSERT (ML 학습 데이터 축적)
+    3. 먹구름봇 처리 종료 (서브봇 응답 대기 없음)
 
-[식사봇] on_message 이벤트 (meal_thread_id 쓰레드)
+[서브봇] 폴링 루프 (5~30초 간격):
+    1. task_queue SELECT WHERE bot_target = 'meal' AND status = 'pending'
+    2. 처리 (GPT 파싱, DB 저장 등)
+    3. personal_channel_id 채널에 직접 Embed 응답
+    4. task_queue UPDATE status = 'done'
+```
+
+### 사진 입력 — v4.0 직접 업로드 방식
+
+```
+[식사봇] personal_channel_id 채널 on_message 이벤트
+    → 이미지 첨부 감지 → "📸 음식 사진이에요? [✅] [❌]" 응답
+    → Vision 분석 → Embed + [✅ 기록하기] [❌ 취소]
+    ← meal_waiting DB 패턴 불필요 (채널에서 직접 처리)
+```
+
+### v3.2 하위 호환 — 사진 대기 상태 (기존 유저)
+
+```
+[먹구름봇] v3.2 버튼 경유:
+    1. set_meal_waiting(user_id, seconds=60)  ← DB 만료 시각
+    2. "식사 쓰레드에 사진을 올려줘!" 안내
+
+[식사봇] meal_thread_id or thread_id on_message:
     → is_meal_waiting(user_id) → True
     → clear_meal_waiting(user_id)
-    → GPT-4o Vision 분석 → Embed 전송
+    → GPT-4o Vision 분석 → Embed
 ```
 
 ---

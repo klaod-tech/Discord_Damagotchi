@@ -307,7 +307,7 @@ _poll_user(user):
   ※ TODO: bot_meal.py로 이전 예정 (식사 ML이므로)
 
 [매주 일요일 08:00] _weekly_report()
-  → 전체 유저 메인 쓰레드에 주간 Embed 전송:
+  → 전체 유저 personal_channel_id (or thread_id fallback)에 주간 Embed 전송:
       🔥 칼로리 평균 / 목표 달성일 / 기록일
       🍽️ 끼니 커버리지 (아침·점심·저녁 × 7일)
       🏆 이번 주 최다 음식
