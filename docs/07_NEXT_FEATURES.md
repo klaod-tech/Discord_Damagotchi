@@ -250,8 +250,8 @@ diary_log (
 
 ## Phase 5 — 일정봇 (bot_schedule.py)
 
-> 상태: 설계 완료, 구현 예정  
-> 상세 문서: [`docs/bots/schedule/`](bots/schedule/) — OVERVIEW / FLOWS / DB / IMPLEMENTATION / ML
+> 상태: 📋 구상 단계 — UX 흐름 미결, 코드 없음  
+> 상세 문서: [`docs/bots/schedule/`](bots/schedule/)
 
 ### 개요
 
@@ -300,16 +300,29 @@ schedules (
 
 ```
 n8n 연동 (Phase 3)
-[ ] n8n 응답 포맷 확정 (팀원)
-[ ] 위치 필드 address 컬럼 추가 결정
-[ ] N8N_FOOD_WEBHOOK_URL 환경변수 등록
+[ ] n8n에서 웹훅 URL 수령 후 N8N_FOOD_WEBHOOK_URL 등록
+[ ] n8n 응답 JSON 포맷 확인 후 embed 구성
+※ address 컬럼 추가: 확정 (v4.0 채널 구조 전환 시 온보딩에 추가)
 
 다음 봇 구현
-[ ] bot_weight.py — cogs.weight 이전 + 체중 목표 동적 조정 통합
-[ ] bot_diary.py  — 구현 코드: docs/bots/diary/IMPLEMENTATION.md
-[ ] bot_schedule.py — 구현 코드: docs/bots/schedule/IMPLEMENTATION.md
+[ ] bot_weight.py — cogs.weight 이전 (기능 변경 없이 분리, 이후 점진적 확장)
+[ ] bot_diary.py  — UX 흐름 구체화 → 구현 시작
+[ ] bot_schedule.py — UX 흐름 구체화 → 구현 시작
+
+채널 구조 전환 (v4.0)
+[ ] TAMAGOTCHI_CATEGORY_ID 환경변수 등록 (Discord 카테고리 생성 후)
+[ ] cogs/onboarding.py — 전용 채널 생성 방식으로 전환
+[ ] users.personal_channel_id 컬럼 마이그레이션
+[ ] users.address 컬럼 마이그레이션
+
+ML 의도 분류기 (v4.0+)
+[ ] intent_log 테이블 생성
+[ ] utils/intent_classifier.py 신규 생성
+[ ] bot.py on_message GPT 의도 분류 + intent_log 저장 로직 추가
+[ ] 매주 일요일 ML 재학습 스케줄러 추가
 
 배포
-[ ] 호스팅 방식 결정 (Railway / Render / VPS — 4개 봇 프로세스 동시 배포)
+[ ] 호스팅 방식 결정 (Railway / Render / VPS — 7개 봇 프로세스 기준)
 [ ] .env → 플랫폼 시크릿 이전
+[ ] 20인 서버 기준 Supabase 커넥션 풀 설정 확인
 ```
