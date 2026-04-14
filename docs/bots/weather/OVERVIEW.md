@@ -10,7 +10,7 @@
 | 토큰 환경변수 | `DISCORD_TOKEN_WEATHER` |
 | 커맨드 prefix | `!weather_` |
 | 담당 Cog | `cogs/weather.py` → `WeatherCog` |
-| 담당 쓰레드 | `users.weather_thread_id` (fallback: `thread_id`) |
+| Push 위치 | `users.info_thread_id` (v4.0~, Push 전용), fallback: `weather_thread_id` → `thread_id` |
 | 담당 DB 테이블 | `weather_log` (소유) |
 | 현재 상태 | ✅ cog 구현 완료 |
 
@@ -22,7 +22,7 @@
 - 유저 기상 시간(wake_time)에 날씨 데이터 자동 수집
 - 기상청 초단기실황 API (격자 좌표 기반)
 - 에어코리아 미세먼지 API (시도 기반)
-- 날씨 전용 쓰레드에 날씨 Embed 전송
+- `info_thread_id` (알림 쓰레드)에 날씨 Embed 전송 (Push 전용)
 - 다마고치 메인 Embed 이미지를 날씨 기반으로 교체
 - `weather_log` DB 저장 (먹구름봇 하루정리에서 읽음)
 - `!weather` 커맨드 (관리자 전용 즉시 갱신)

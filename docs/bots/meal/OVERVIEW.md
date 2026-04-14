@@ -10,7 +10,7 @@
 | 토큰 환경변수 | `DISCORD_TOKEN_MEAL` |
 | 커맨드 prefix | `!meal_` |
 | 담당 Cog | `cogs/meal.py` → `MealPhotoCog` |
-| 담당 쓰레드 | `users.meal_thread_id` |
+| 응답 위치 | `users.personal_channel_id` (v4.0~), `meal_thread_id` fallback (v3.2 호환) |
 | 담당 DB 테이블 | `meals` (소유) |
 | 현재 상태 | ✅ cog 구현 완료 |
 
@@ -19,7 +19,7 @@
 ## 2. 역할 및 범위
 
 ### 이 봇이 하는 것
-- 유저 전용 쓰레드(meal_thread_id)에서 이미지 첨부 감지
+- 유저 전용 채널(personal_channel_id)에서 이미지 첨부 감지 (v4.0~, v3.2는 meal_thread_id)
 - `is_meal_waiting()` → True: 바로 GPT-4o Vision 분석 (사진 입력 대기 흐름)
 - `is_meal_waiting()` → False: "📸 음식 사진이에요?" 감지 버튼 표시 (자발적 업로드 흐름)
 - `MealPhotoDetectView`: [✅ 분석하기] / [❌ 아니야] 버튼
@@ -54,8 +54,8 @@ utils/gpt_ml_bridge.py ← get_corrected_calories (ML 보정)
 3. 이미지 아닌 첨부파일 → 무시
 4. 채널이 discord.Thread 아님 → 무시
 5. `get_user(user_id)` → None → 무시
-6. `allowed_thread_id = user.get("meal_thread_id") or user.get("thread_id")`
-   → 현재 쓰레드 ID와 다름 → 무시
+6. `allowed_channel_id = user.get("personal_channel_id") or user.get("meal_thread_id") or user.get("thread_id")`
+   → 현재 채널/쓰레드 ID와 다름 → 무시 (v4.0: personal_channel_id, v3.2: meal_thread_id fallback)
 
 위 6개 통과 시:
 - `is_meal_waiting(user_id)` → True: 즉시 분석 (대기 흐름)
