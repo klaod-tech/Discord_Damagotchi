@@ -36,23 +36,37 @@
 ## 3. 담당 기능 요약
 
 ### 온보딩 (`cogs/onboarding.py`)
+
+**v3.2 현재 (쓰레드 방식)**
 - `/start` 슬래시 커맨드 → 채널에 시작 Embed + StartView 고정
-- `StartView` "시작하기" 버튼 → `OnboardingModal` 열기
-- 온보딩 완료 시 전용 쓰레드 **5개** 일괄 생성:
-  - `{이름}의 {캐릭터명}` (메인)
-  - `📧 {이름}의 메일함`
-  - `🍽️ {이름}의 식사 기록`
-  - `🌤️ {이름}의 날씨`
-  - `⚖️ {이름}의 체중관리`
+- 온보딩 완료 시 전용 쓰레드 **5개** 일괄 생성 (#다마고치 채널 하위)
 - GPT로 권장 칼로리 계산 후 DB 저장
 - 온보딩 완료 후 시간 설정 (TimeStep1View) 자동 팝업
 
-### 메인 Embed (`utils/embed.py`)
-- `create_or_update_embed()`: 쓰레드에 다마고치 Embed 생성 또는 수정
+**v4.0 목표 (전용 채널 방식)**
+- 온보딩 완료 시 `먹구름` 카테고리에 유저 전용 채널 `#{이름}-채팅창` 생성
+- 전용 채널 안에 기능봇 쓰레드 **6개** 생성
+- 채널 권한 자동 설정 (해당 유저만 접근)
+- `personal_channel_id` DB 저장
+- 온보딩 모달에 `address` 필드 추가 (동 단위, n8n 음식 추천용)
+
+### 캐릭터 상태 표시
+
+**v3.2 현재**: 메인 쓰레드에 Embed + 버튼 5개 (MainView)  
+**v4.0 목표**: 유저 전용 채널에 Embed 고정 메시지(pin), 버튼 없음
+
+- `create_or_update_embed()`: 채널에 다마고치 Embed 생성 또는 수정
 - `embed_message_id` DB에 저장 → 재연결 후에도 기존 메시지 수정 (새 메시지 X)
-- 버튼 Row 0: `🍽️ 식사 입력` / `📋 하루 정리` / `🍜 뭐 먹고 싶어?`
-- 버튼 Row 1: `⚙️ 설정` / `⚖️ 체중 기록`
-- `MainView(timeout=None)` — Persistent View (봇 재시작 후에도 동작)
+
+### 오케스트레이터 (`bot.py on_message`)
+
+**v4.0 목표**
+- 유저 전용 채널의 모든 메시지를 감지
+- GPT(초기) / ML(50건+ 누적 후)로 의도 분류:  
+  `meal | diary | schedule | weight | none`
+- 의도에 따라 `task_queue` 테이블에 작업 삽입
+- 각 전문봇이 30초 폴링하여 처리
+- `intent_log` 테이블에 학습 데이터 저장
 
 ### 설정 (`cogs/settings.py`, `cogs/time_settings.py`)
 - `SettingsSubView`: 설정 항목 선택 (도시/체중목표/이메일)

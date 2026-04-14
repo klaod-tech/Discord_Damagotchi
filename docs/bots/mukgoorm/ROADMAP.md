@@ -150,9 +150,64 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS address TEXT;
 
 ---
 
+## Phase 3.5 — 채널 구조 전환 (v4.0 사전 작업)
+
+> 유저별 전용 채널 생성 방식으로 온보딩 전환
+
+### 3.5-1. 온보딩 수정 (cogs/onboarding.py)
+
+```python
+# 기존: #다마고치 채널에 쓰레드 생성
+# 변경: "먹구름" 카테고리에 전용 채널 생성
+
+category = guild.get_channel(int(os.getenv("TAMAGOTCHI_CATEGORY_ID")))
+
+# 유저 전용 채널 생성
+personal_channel = await guild.create_text_channel(
+    name=f"{name}-채팅창",
+    category=category,
+    overwrites={
+        guild.default_role: discord.PermissionOverwrite(read_messages=False),
+        member: discord.PermissionOverwrite(read_messages=True, send_messages=True),
+    }
+)
+set_personal_channel_id(user_id, str(personal_channel.id))
+
+# 전용 채널 안에 기능봇 쓰레드 생성
+meal_thread = await personal_channel.create_thread(name=f"🍽️ {name}의 식사기록", ...)
+# ... 나머지 쓰레드들
+```
+
+### 3.5-2. 환경변수 추가
+
+```bash
+TAMAGOTCHI_CATEGORY_ID  # "먹구름" 카테고리 ID
+```
+
+### 3.5-3. DB 컬럼 추가
+
+```sql
+ALTER TABLE users ADD COLUMN IF NOT EXISTS personal_channel_id TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS address TEXT;
+```
+
+### 3.5-4. 온보딩 모달 필드 추가
+
+```python
+# cogs/onboarding.py OnboardingModal
+address = discord.ui.TextInput(
+    label="동네 주소 (음식 추천용)",
+    placeholder="예: 마포구 합정동 (선택 입력)",
+    required=False,
+    max_length=50
+)
+```
+
+---
+
 ## Phase 4 — 오케스트레이터 전환 (v4.0)
 
-> bot.py가 메시지를 GPT로 파싱 → 관련 봇 자동 트리거
+> bot.py가 메시지를 GPT/ML로 파싱 → 관련 봇 자동 트리거
 
 ### 4-1. task_queue 테이블 생성
 
