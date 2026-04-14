@@ -191,13 +191,20 @@ mail_id = user.get("mail_thread_id") or user.get("thread_id")
     5. task_queue UPDATE status = 'archived'
 ```
 
-### 사진 입력 — v4.0 직접 업로드 방식
+### 사진 입력 — v4.0 흐름 (두 경로)
 
 ```
-[식사봇] personal_channel_id 채널 on_message 이벤트
-    → 이미지 첨부 감지 → "📸 음식 사진이에요? [✅] [❌]" 응답
-    → Vision 분석 → Embed + [✅ 기록하기] [❌ 취소]
-    ← meal_waiting DB 패턴 불필요 (채널에서 직접 처리)
+경로 A: 메인봇 버튼 클릭 → "📸 사진으로 입력" 선택
+  → set_meal_waiting(user_id, 60s) → "지금 사진을 올려줘!" 안내
+  → [식사봇] personal_channel_id on_message: is_meal_waiting → True → 즉시 Vision 분석
+
+경로 B: 유저가 personal_channel_id에 사진 직접 업로드
+  → [식사봇] on_message 이미지 감지 → is_meal_waiting → False
+  → "📸 음식 사진이에요? [✅ 분석] [❌ 아니야]" 버튼 표시
+  → [✅] 클릭 → GPT-4o Vision 분석 → Embed + [✅ 기록하기]
+
+공통: 기록 완료 후 식약처 API 칼로리 불가(사진) → GPT Vision 값 + ML 보정 적용
+      DB 저장 → meal_waiting 해제
 ```
 
 ### v3.2 하위 호환 — 사진 대기 상태 (기존 유저)
