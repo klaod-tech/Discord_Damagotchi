@@ -109,13 +109,13 @@ N8N_FOOD_WEBHOOK_URL       # n8n 음식 추천 웹훅 URL
 
 | 봇 파일 | 역할 | 상태 | 토큰 |
 |---------|------|------|------|
-| `bot.py` | 먹구름봇 — 오케스트레이터 (GPT 자연어 파싱, 설정, 버튼 허브) | ✅ 운영 | `DISCORD_TOKEN` |
+| `bot.py` | 먹구름봇 — 오케스트레이터 (자연어 GPT/ML 의도 분류, 설정, 온보딩) | ✅ 운영 | `DISCORD_TOKEN` |
 | `bot_mail.py` | 메일봇 — IMAP 1분 폴링, 발신자 알림 | ✅ 운영 | `DISCORD_TOKEN_EMAIL` |
 | `bot_meal.py` | 식사봇 — 사진 감지, 칼로리 분석 | ✅ 분리 완료 | `DISCORD_TOKEN_MEAL` |
 | `bot_weather.py` | 날씨봇 — 기상청/에어코리아 스케줄 알림 | ✅ 분리 완료 | `DISCORD_TOKEN_WEATHER` |
-| `bot_weight.py` | 체중관리봇 — 체중 추이 (향후 스케줄 기능 추가 예정) | 🔄 skeleton | `DISCORD_TOKEN_WEIGHT` |
-| `bot_diary.py` | 일기봇 — 감정 분석, 식사×감정 상관 데이터 | 🔄 구현 예정 | `DISCORD_TOKEN_DIARY` |
-| `bot_schedule.py` | 일정봇 — 일정 등록, 반복 패턴 학습 | 🔄 구현 예정 | `DISCORD_TOKEN_SCHEDULE` |
+| `bot_weight.py` | 체중관리봇 — 체중 기록, 목표 관리 (이후 점진적 기능 확장) | 🔄 skeleton | `DISCORD_TOKEN_WEIGHT` |
+| `bot_diary.py` | 일기봇 — 감정 분석, 식사×감정 상관 데이터 | 📋 구상 단계 | `DISCORD_TOKEN_DIARY` |
+| `bot_schedule.py` | 일정봇 — 일정 등록, 반복 패턴 학습 | 📋 구상 단계 | `DISCORD_TOKEN_SCHEDULE` |
 
 > **모든 봇은 동일한 Supabase DB 공유** — 별도 IPC 없이 DB를 통해 상태 공유
 
@@ -415,19 +415,25 @@ utils/gpt_ml_bridge.py   ML 결과 → GPT extra_context 브릿지
   - DB: meal/weather/weight_thread_id + meal_waiting_until 컬럼 추가
   - 온보딩: 전용 쓰레드 5개 자동 생성
 
-[다음] v3.3 — 일기봇 (bot_diary.py)
+[다음] v3.3 — 체중관리봇 분리 + n8n 음식 추천
+  - bot_weight.py 완전 활성화 (cogs.weight 이전, 기능 추가 없이)
+  - n8n 웹훅 URL 수령 후 음식 추천 연동
+
+[다음] v3.4 — 일기봇 (bot_diary.py)
+  - UX 흐름 구체화 후 구현
   - diary_log 테이블 생성
-  - 일기 입력 Modal → GPT 감정 분석 → DB 저장
-  - 식사 × 감정 상관 데이터 누적 시작 (ML 학습 데이터)
+  - GPT 감정 분석 → DB 저장
 
-[다음] v3.4 — 일정봇 (bot_schedule.py)
-  - schedule_log 테이블 생성
-  - 일정 등록 Modal + APScheduler 알림
-  - 반복 패턴 학습 (ML)
+[다음] v3.5 — 일정봇 (bot_schedule.py)
+  - UX 흐름 구체화 후 구현
+  - schedules 테이블 생성
+  - APScheduler 알림
 
-[장기] v4.0 — 오케스트레이터 고도화
-  - 먹구름봇 자연어 파싱 → 자동으로 관련 봇 연동
-  - "광교산 가서 샌드위치 먹었어" → 일기봇 + 식사봇 동시 처리
+[장기] v4.0 — 채널 구조 전환 + 오케스트레이터
+  - 유저별 전용 채널 + 기능봇 쓰레드 구조로 온보딩 전환
+  - 버튼 Embed 폐기 → 자연어 대화 방식
+  - GPT/ML 의도 분류 → 전문봇 자동 트리거
+  - intent_log 데이터 축적 → ML 의도 분류기 점진적 전환 (비용 절감)
 ```
 
 ---
