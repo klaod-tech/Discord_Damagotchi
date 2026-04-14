@@ -245,16 +245,18 @@ mukgoorm/
 | `email_senders` | 유저별 등록 발신자 목록 (알림 필터) |
 | `email_log` | 수신 이메일 로그 (ML 스팸 분류 학습 데이터) |
 
-### users 테이블 주요 컬럼 (v3.2 기준)
+### users 테이블 주요 컬럼
 
 | 컬럼 | 타입 | 역할 |
 |------|------|------|
-| `thread_id` | TEXT | 메인 쓰레드 ID (기존 fallback용) |
-| `mail_thread_id` | TEXT | 메일봇 전용 쓰레드 |
-| `meal_thread_id` | TEXT | 식사봇 전용 쓰레드 |
-| `weather_thread_id` | TEXT | 날씨봇 전용 쓰레드 |
-| `weight_thread_id` | TEXT | 체중관리봇 전용 쓰레드 |
-| `meal_waiting_until` | TIMESTAMP | 사진 입력 대기 만료 시각 (봇 간 상태 공유) |
+| `thread_id` | TEXT | 메인 쓰레드 ID (v3.2 fallback용) |
+| `personal_channel_id` | TEXT | 유저 전용 채널 (v4.0~, 오케스트레이터 + 서브봇 응답) |
+| `info_thread_id` | TEXT | Push 알림 쓰레드 (v4.0~, 날씨+일정 통합) |
+| `mail_thread_id` | TEXT | 메일봇 Push 전용 쓰레드 |
+| `meal_waiting_until` | TIMESTAMP | 사진 입력 대기 만료 시각 (v3.2 호환) |
+| ~~`meal_thread_id`~~ | TEXT | [v3.2 호환용] 식사봇 전용 쓰레드 |
+| ~~`weather_thread_id`~~ | TEXT | [v3.2 호환용] 날씨봇 전용 쓰레드 |
+| ~~`weight_thread_id`~~ | TEXT | [v3.2 호환용] 체중관리봇 전용 쓰레드 |
 
 ### 추가 예정 테이블
 
@@ -409,10 +411,9 @@ utils/gpt_ml_bridge.py   ML 결과 → GPT extra_context 브릿지
 
 [완료] v3.2 — 멀티봇 분리 (현재)
   - bot_meal.py: cogs.meal 독립 — 사진 감지, DB 기반 대기 상태
-  - bot_weather.py: cogs.weather 독립 — weather_thread_id 전용 알림
+  - bot_weather.py: cogs.weather 독립 — weather_thread_id 전용 알림 (v4.0에서 info_thread_id로 전환 예정)
   - bot_weight.py: 향후 분리 준비 완료 (skeleton)
-  - DB: meal/weather/weight_thread_id + meal_waiting_until 컬럼 추가
-  - 온보딩: 전용 쓰레드 5개 자동 생성
+  - DB: meal/weather/weight_thread_id + meal_waiting_until 컬럼 추가 (v4.0~폐기 예정)
 
 [다음] v3.3 — 체중관리봇 분리 + n8n 음식 추천
   - bot_weight.py 완전 활성화 (cogs.weight 이전, 기능 추가 없이)
@@ -429,8 +430,9 @@ utils/gpt_ml_bridge.py   ML 결과 → GPT extra_context 브릿지
   - APScheduler 알림
 
 [장기] v4.0 — 채널 구조 전환 + 오케스트레이터
-  - 유저별 전용 채널 + 기능봇 쓰레드 구조로 온보딩 전환
+  - 유저별 전용 채널(personal_channel_id) + Push 쓰레드 2개만 (알림/메일)
   - 버튼 Embed 폐기 → 자연어 대화 방식
+  - 서브봇: task_queue 폴링 → personal_channel_id에 직접 응답 (메인봇 반환 없음)
   - GPT/ML 의도 분류 → 전문봇 자동 트리거
   - intent_log 데이터 축적 → ML 의도 분류기 점진적 전환 (비용 절감)
 ```
