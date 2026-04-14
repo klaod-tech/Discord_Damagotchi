@@ -61,15 +61,15 @@ Discord 서버 #먹구름 채널
 
 ### 봇 현황
 
-| 봇 파일 | 상태 | 로드 Cog | 전용 쓰레드 |
+| 봇 파일 | 상태 | 로드 Cog | 응답/Push 위치 |
 |---------|------|----------|------------|
-| `bot.py` | ✅ 운영 중 | onboarding, summary, settings, time_settings, scheduler, weight* | `thread_id` (메인) |
-| `bot_mail.py` | ✅ 운영 중 | email_monitor | `mail_thread_id` |
-| `bot_meal.py` | ✅ 운영 중 | meal | `meal_thread_id` |
-| `bot_weather.py` | ✅ 운영 중 | weather | `weather_thread_id` |
-| `bot_weight.py` | 🔄 skeleton | (weight Cog 이전 예정) | `weight_thread_id` |
-| `bot_diary.py` | 📋 미구현 | (diary Cog 예정) | `diary_thread_id` |
-| `bot_schedule.py` | 📋 미구현 | (schedule Cog 예정) | `schedule_thread_id` |
+| `bot.py` | ✅ 운영 중 | onboarding, summary, settings, time_settings, scheduler, weight* | `personal_channel_id` (오케스트레이터) |
+| `bot_mail.py` | ✅ 운영 중 | email_monitor | `mail_thread_id` (Push 전용) |
+| `bot_meal.py` | ✅ 운영 중 | meal | `personal_channel_id` (직접 응답) |
+| `bot_weather.py` | ✅ 운영 중 | weather | `info_thread_id` (Push 전용) |
+| `bot_weight.py` | 🔄 skeleton | (weight Cog 이전 예정) | `personal_channel_id` (직접 응답) |
+| `bot_diary.py` | 📋 미구현 | (diary Cog 예정) | `personal_channel_id` (직접 응답) |
+| `bot_schedule.py` | 📋 미구현 | (schedule Cog 예정) | `personal_channel_id` (직접 응답) + `info_thread_id` (Push 알림) |
 
 > *`cogs.weight`는 현재 bot.py에 임시 로드 중. bot_weight.py 활성화 시 이전 예정.
 
