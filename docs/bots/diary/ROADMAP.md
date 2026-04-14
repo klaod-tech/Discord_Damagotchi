@@ -20,18 +20,15 @@
 - Bot 탭 → 토큰 발급
 - `.env`에 `DISCORD_TOKEN_DIARY` 추가
 
-### 0-2. 온보딩 수정 — 일기 쓰레드 추가
+### 0-2. 온보딩 수정 — 일기봇 쓰레드 추가
 
-현재 온보딩 시 5개 쓰레드 생성:  
-메인 / 식사 / 날씨 / 체중관리 / 메일함
-
-→ **6번째 쓰레드 추가**: `{이름}의 일기장`
+**v4.0 채널 구조 전환 후**: 유저 전용 채널 안에 일기봇 쓰레드 생성.
 
 ```python
-# cogs/onboarding.py OnboardingModal.on_submit() 수정
+# cogs/onboarding.py — 채널 구조 전환 시 함께 추가
 
-diary_thread = await channel.create_thread(
-    name=f"{name}의 일기장",
+diary_thread = await personal_channel.create_thread(
+    name=f"📔 {name}의 일기장",
     auto_archive_duration=10080,  # 7일
     type=discord.ChannelType.public_thread
 )
