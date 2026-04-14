@@ -22,9 +22,10 @@
        📝 일기: text[:200] + "..." (200자 초과 시)
        🎭 감정: {emoji} {emotion_tag} (강도: {int(score*100)}%)
        footer: "오늘도 수고했어 🌙"
-  → thread_id = diary_thread_id or thread_id
-  → thread.send(embed=embed)  ← 일기 전용 쓰레드에 공개 전송
+  → task_queue UPDATE { status: 'done', result_json: {emotion_tag, emotion_score, comment} }
+  → 먹구름봇: personal_channel_id에 감정 Embed 전송 + 캐릭터 Embed 갱신
   → followup.send("✅ 일기가 기록됐어!", ephemeral=True)
+  ※ v3.2 fallback: diary_thread_id or thread_id 쓰레드에 직접 전송
 ```
 
 ---

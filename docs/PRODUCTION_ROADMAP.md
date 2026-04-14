@@ -144,10 +144,10 @@ Railway 기준 설정:
 
 | 항목 | 내용 |
 |------|------|
-| Discord 채널 수 | 최대 20명 × 6~7 쓰레드 ≈ 130개 (한도 500, 여유 있음) |
+| Discord 채널 수 | 최대 20명 × (채널 1개 + 쓰레드 2개) ≈ 60개 (한도 500, 여유 있음) |
 | 환경변수 추가 | `TAMAGOTCHI_CATEGORY_ID` (카테고리 ID) |
 | DB 컬럼 추가 | `users.personal_channel_id`, `users.address` |
-| 신규 테이블 | `intent_log` (ML 학습 데이터) |
+| 신규 테이블 | `task_queue` (봇 간 통신 + result_json 반환), `intent_log` (ML 학습 데이터) |
 | Supabase 연결 | 7개 봇 동시 운영 → 커넥션 풀 한도 확인 필요 |
 
 ---

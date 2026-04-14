@@ -183,7 +183,7 @@ NAVER_MAIL_PW           # 봇 발신용 네이버 앱 비밀번호
 | 모듈 | 역할 | 사용 봇 |
 |------|------|---------|
 | `utils/db.py` | Supabase CRUD 전체, 마이그레이션 | 모든 봇 |
-| `utils/gpt.py` | GPT-4o 래퍼 (파싱·분석·대사·요약) | bot.py, bot_mail.py |
+| `utils/gpt.py` | GPT-4o 래퍼 (파싱·분석·대사·요약) | bot.py, bot_mail.py, bot_meal.py (Vision) |
 | `utils/embed.py` | 메인 Embed + View/Modal 빌더 | bot.py |
 | `utils/image.py` | 11종 이미지 우선순위 선택 로직 | bot.py, bot_weather.py |
 | `utils/ml.py` | 칼로리 보정 모델 (즉시 + 개인화) | bot_meal.py |
