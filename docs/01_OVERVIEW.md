@@ -129,6 +129,18 @@ Discord 서버 #먹구름 채널
 
 ---
 
+## 유저 규모 및 설계 기준
+
+| 항목 | 내용 |
+|------|------|
+| 현재 운영 | 2인 프라이빗 서버 |
+| 목표 규모 | 최대 20인 소규모 서버 |
+| 채널 예상 수 | 20명 × 6~7 쓰레드 ≈ 130개 (Discord 한도 500개, 여유 있음) |
+| DB 연결 | 7개 봇 × 동시 연결 — Supabase 커넥션 풀 모니터링 필요 |
+| API 비용 기준 | 20명 × GPT 호출 빈도 — 월 예산 계획 시 20인 기준 적용 |
+
+---
+
 ## 환경변수 (.env)
 
 ```bash
@@ -151,11 +163,14 @@ FOOD_API_KEY            # 식약처 식품영양성분 DB (data.go.kr)
 DATABASE_URL            # Supabase Session pooler URL
                         # postgresql://postgres.{project_id}:{password}@...
 
-# 채널
-TAMAGOTCHI_CHANNEL_ID   # #먹구름 채널 ID
+# 채널 (v3.2 현재)
+TAMAGOTCHI_CHANNEL_ID   # 온보딩 진입점 채널 ID (#먹구름-시작)
 
-# n8n (미구현, 팀원 확정 후)
-N8N_FOOD_WEBHOOK_URL    # 음식 추천 웹훅 URL
+# 채널 (v4.0 채널 구조 전환 시 추가)
+TAMAGOTCHI_CATEGORY_ID  # 유저 전용 채널이 생성될 카테고리 ID
+
+# n8n (웹훅 URL 수령 후 등록)
+N8N_FOOD_WEBHOOK_URL    # 음식 추천 웹훅 URL (n8n에서 발급)
 
 # 이메일 발신 (미사용, Phase 3 예정)
 NAVER_MAIL_ID           # 봇 발신용 네이버 아이디
@@ -189,6 +204,10 @@ NAVER_MAIL_PW           # 봇 발신용 네이버 앱 비밀번호
 
 | 버전 | 날짜 | 주요 변경사항 |
 |------|------|--------------|
+| v4.0 | 예정 | 유저별 전용 채널 구조, 메인봇 자연어 오케스트레이터 전환, ML 의도 분류 |
+| v3.5 | 예정 | 일정봇 (bot_schedule.py) 구현 |
+| v3.4 | 예정 | 일기봇 (bot_diary.py) 구현 |
+| v3.3 | 예정 | 체중관리봇 분리, n8n 음식 추천 연동 |
 | v1.0 | 2026-03-25 | 전체 설계, DB 구조, 기술스택 확정 |
 | v1.1~v1.9 | 2026-03-28~04-02 | 온보딩, 식사 입력, 날씨, 스케줄러, 이미지 시스템 |
 | v2.0 | 2026-04-02 | gender/age/height DB 저장, 칼로리 재계산 |
