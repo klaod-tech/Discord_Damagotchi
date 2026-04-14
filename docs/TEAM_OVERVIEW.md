@@ -126,11 +126,11 @@ N8N_FOOD_WEBHOOK_URL       # n8n 음식 추천 웹훅 URL
   [먹구름봇] 📸 버튼 클릭 → users.meal_waiting_until = NOW()+60s (DB 기록)
   [식사봇]   on_message → is_meal_waiting() DB 조회 → 사진 분석
 
-날씨 알림:
-  [날씨봇]   APScheduler → weather_thread_id or thread_id → 쓰레드에 embed 전송
+날씨 알림 (v4.0 Push):
+  [날씨봇]   APScheduler → info_thread_id or thread_id → 알림 쓰레드에 embed 전송
 
-체중 달성 알림:
-  [먹구름봇] WeightInputModal → weight_thread_id or thread_id → embed 전송
+체중 기록 응답 (v4.0):
+  [체중봇]   WeightInputModal → personal_channel_id or thread_id → 채널에 직접 응답
 ```
 
 ---
@@ -159,20 +159,19 @@ N8N_FOOD_WEBHOOK_URL       # n8n 음식 추천 웹훅 URL
 ├── #먹구름-시작  (공용 — 온보딩 진입점)
 │
 └── 📁 먹구름  (카테고리)
-    ├── #유저A-채팅창  ← 유저A 전용 채널 (메인봇 자연어 대화)
-    │   캐릭터 상태 Embed 고정 (버튼 없음)
-    │   ├── 🍽️ A의-식사기록    — 식사봇
-    │   ├── 🌤️ A의-날씨        — 날씨봇
-    │   ├── ⚖️ A의-체중관리    — 체중관리봇
-    │   ├── 📧 A의-메일함      — 메일봇
-    │   ├── 📔 A의-일기장      — 일기봇 (v3.4~)
-    │   └── 📅 A의-일정표      — 일정봇 (v3.5~)
+    ├── #유저A-채팅창  ← 유저A 전용 채널 (오케스트레이터 대화 + 서브봇 직접 응답)
+    │   캐릭터 상태 Embed 고정 (버튼 없음, 자연어 입력)
+    │   ├── 🔔 A의-알림     — Push 전용: 날씨 기상 + 일정 D-day
+    │   └── 📧 A의-메일함   — Push 전용: 메일봇 알림
     │
     └── #유저B-채팅창  (동일 구조)
 ```
 
-> **변화 핵심**: 단일 채널+쓰레드 → 유저별 전용 채널+기능별 쓰레드  
-> 메인봇 UX: 버튼 Embed → 자연어 대화, GPT/ML 의도 분류 → 전문봇 자동 트리거
+> **변화 핵심**:
+> - 단일 채널+쓰레드 → 유저별 전용 채널 + Push 전용 쓰레드 2개만
+> - 서브봇 응답은 채널에 직접 (쓰레드 없음)
+> - Push 알림만 쓰레드 (날씨+일정 → 알림 쓰레드, 메일 → 메일함 쓰레드)
+> - 서브봇 → 메인봇 반환 없음. task_queue 통해 단방향 트리거.
 
 ---
 
@@ -189,14 +188,14 @@ mukgoorm/
 ├── bot_schedule.py         # 일정봇 — 구현 예정
 │
 ├── cogs/                   # 기능 모듈 (Cog)
-│   ├── onboarding.py       # 온보딩 — 전용 쓰레드 5개 자동 생성
+│   ├── onboarding.py       # 온보딩 — 전용 채널 1개 + 알림/메일 쓰레드 2개 생성 (v4.0)
 │   ├── meal.py             # 식사봇용 — 사진 감지, DB 기반 대기 상태
 │   ├── summary.py          # 하루 정리 — 먹구름봇에서 호출
 │   ├── settings.py         # 설정 SubView (내정보/위치/시간/이메일)
 │   ├── time_settings.py    # 시간 설정 Select Menu
 │   ├── scheduler.py        # APScheduler — 식사 알림, 일일 판정, ML 재학습, 주간 리포트
-│   ├── weather.py          # 날씨봇용 — 기상청/에어코리아, weather_thread_id 우선
-│   ├── weight.py           # 체중 기록 Modal, weight_thread_id 우선
+│   ├── weather.py          # 날씨봇용 — 기상청/에어코리아, info_thread_id Push 전용
+│   ├── weight.py           # 체중 기록 Modal, personal_channel_id 직접 응답
 │   └── email_monitor.py    # 메일봇용 — IMAP 1분 폴링, 슬래시 커맨드 4종
 │
 ├── utils/                  # 공통 유틸리티
