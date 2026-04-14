@@ -45,14 +45,19 @@ breakfast_time   TEXT NOT NULL         -- 아침 알림 HH:MM
 lunch_time       TEXT NOT NULL         -- 점심 알림 HH:MM
 dinner_time      TEXT NOT NULL         -- 저녁 알림 HH:MM
 
--- 쓰레드 ID (봇별 전용)
-thread_id        TEXT                  -- 메인 쓰레드 (fallback 기준)
+-- 채널 / 쓰레드 ID (봇별 전용)
+personal_channel_id TEXT               -- 유저 전용 채널 ID (v4.0 채널 구조 전환 시)
+thread_id        TEXT                  -- 메인 쓰레드 (fallback 기준, 기존 유저 호환용)
 mail_thread_id   TEXT                  -- 메일봇 전용 (v3.0)
 meal_thread_id   TEXT                  -- 식사봇 전용 (v3.2)
 weather_thread_id TEXT                 -- 날씨봇 전용 (v3.2)
 weight_thread_id  TEXT                 -- 체중관리봇 전용 (v3.2)
 -- diary_thread_id  TEXT              -- 일기봇 전용 (v3.4 예정)
 -- schedule_thread_id TEXT            -- 일정봇 전용 (v3.5 예정)
+
+-- 위치 정보
+-- city: 기존 (날씨 API용, 시 단위)
+address          TEXT                  -- 음식 추천용 주소 (v4.0, 구/동 단위, nullable)
 
 -- 식사봇 cross-process 상태
 meal_waiting_until TIMESTAMP           -- 사진 대기 만료 시각 (v3.2) — NULL이면 대기 중 아님
@@ -211,6 +216,25 @@ written_at  TIMESTAMP DEFAULT NOW()
 
 ---
 
+## intent_log (v4.0 예정 — 미생성)
+
+> ML 의도 분류기 학습 데이터. 먹구름봇 on_message에서 GPT 분류 시마다 저장.
+
+```sql
+log_id         SERIAL PRIMARY KEY
+user_id        TEXT NOT NULL
+message        TEXT NOT NULL           -- 유저 발화 원문
+intent         TEXT NOT NULL           -- 'meal' | 'diary' | 'schedule' | 'weight' | 'none'
+entity_json    TEXT                    -- GPT 추출 엔티티 JSON (예: {"food": "비빔밥"})
+classified_by  TEXT DEFAULT 'gpt'      -- 'gpt' | 'ml' (ML 전환 후 변경)
+created_at     TIMESTAMP DEFAULT NOW()
+```
+
+> **활용**: 유저당 50건+ 누적 시 `utils/intent_classifier.py`로 개인화 ML 모델 학습.  
+> 매주 일요일 03:30 재학습 (ML 재학습과 같은 주기).
+
+---
+
 ## schedules (v3.5 예정 — 미생성)
 
 ```sql
@@ -250,6 +274,9 @@ created_at   TIMESTAMP DEFAULT NOW()
 | `set_meal_thread_id(user_id, thread_id)` | 식사봇 쓰레드 ID 저장 | v3.2 |
 | `set_weather_thread_id(user_id, thread_id)` | 날씨봇 쓰레드 ID 저장 | v3.2 |
 | `set_weight_thread_id(user_id, thread_id)` | 체중관리봇 쓰레드 ID 저장 | v3.2 |
+| `set_diary_thread_id(user_id, thread_id)` | 일기봇 쓰레드 ID 저장 | v3.4 예정 |
+| `set_schedule_thread_id(user_id, thread_id)` | 일정봇 쓰레드 ID 저장 | v3.5 예정 |
+| `set_personal_channel_id(user_id, channel_id)` | 유저 전용 채널 ID 저장 | v4.0 예정 |
 
 ### 식사봇 대기 상태
 
