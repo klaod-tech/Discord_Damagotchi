@@ -254,15 +254,100 @@ async def poll_task_queue():
         mark_task_done(task['task_id'])
 ```
 
-### 4-4. GPT 의도 파싱 프롬프트
+### 4-4. GPT 의도 파싱 프롬프트 (1단계)
 
 ```python
 INTENT_PROMPT = """
 다음 메시지에서 각 의도가 있는지 true/false로 답하세요. JSON만 반환.
-{"meal": bool, "diary": bool, "schedule": bool, "weather": bool}
+{"meal": bool, "diary": bool, "schedule": bool, "weight": bool, "none": bool}
 
 메시지: {text}
 """
+```
+
+### 4-5. intent_log 테이블 생성 (학습 데이터 수집)
+
+```sql
+CREATE TABLE IF NOT EXISTS intent_log (
+  log_id         SERIAL PRIMARY KEY,
+  user_id        TEXT NOT NULL,
+  message        TEXT NOT NULL,       -- 유저 발화 원문
+  intent         TEXT NOT NULL,       -- meal | diary | schedule | weight | none
+  entity_json    TEXT,                -- {"food": "비빔밥", "meal_type": "점심"}
+  classified_by  TEXT DEFAULT 'gpt',  -- 'gpt' | 'ml'
+  created_at     TIMESTAMP DEFAULT NOW()
+);
+```
+
+---
+
+## Phase 5 — ML 의도 분류기 전환 (v4.0 이후)
+
+> GPT가 누적한 intent_log 데이터로 ML 의도 분류기 학습 → GPT 대체
+
+### 5-1. 의도 분류기 (utils/intent_classifier.py 신규)
+
+```python
+# utils/intent_classifier.py
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+import pickle
+
+class IntentClassifier:
+    """
+    유저별 의도 분류기.
+    GPT가 레이블링한 intent_log 데이터로 학습.
+    활성화 조건: 유저당 50건+ 누적
+    """
+
+    def train(self, user_id: str, messages: list, labels: list):
+        vec = TfidfVectorizer(analyzer='char_wb', ngram_range=(2, 4))
+        X = vec.fit_transform(messages)
+        clf = LogisticRegression(max_iter=200)
+        clf.fit(X, labels)
+        with open(f"models/intent_{user_id}.pkl", "wb") as f:
+            pickle.dump((vec, clf), f)
+
+    def predict(self, user_id: str, text: str) -> str:
+        """
+        반환: meal | diary | schedule | weight | none
+        모델 없으면 None 반환 → GPT fallback
+        """
+        try:
+            with open(f"models/intent_{user_id}.pkl", "rb") as f:
+                vec, clf = pickle.load(f)
+            return clf.predict(vec.transform([text]))[0]
+        except FileNotFoundError:
+            return None  # GPT fallback
+```
+
+### 5-2. 의도 분류기 재학습 스케줄러
+
+```python
+# cogs/scheduler.py — 매주 일요일 03:30
+@scheduler.scheduled_job('cron', day_of_week='sun', hour=3, minute=30)
+async def _weekly_intent_retrain():
+    """유저별 intent_log 50건+ 이면 ML 재학습"""
+    users = get_all_users()
+    for user in users:
+        logs = get_intent_logs(user["user_id"], min_count=50)
+        if len(logs) >= 50:
+            classifier.train(
+                user["user_id"],
+                [l["message"] for l in logs],
+                [l["intent"] for l in logs]
+            )
+```
+
+### 5-3. GPT → ML 전환 흐름
+
+```
+[봇 on_message]
+  1. ML 분류기 predict() 시도 (모델 없으면 None)
+  2. None → GPT로 의도 분류 + intent_log 저장 (학습 데이터 누적)
+  3. 분류 결과 → task_queue 삽입 → 전문봇 처리
+  4. 50건+ 누적 → 매주 일요일 ML 재학습
+  5. ML 분류기 완성 후 → GPT 호출 생략, 엔티티 추출만 GPT 사용
 ```
 
 ---
