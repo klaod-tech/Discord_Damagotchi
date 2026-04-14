@@ -151,26 +151,44 @@ mail_id = user.get("mail_thread_id") or user.get("thread_id")
 | `email_senders` | 메일봇 | 없음 |
 | `email_log` | 메일봇 | ML 학습 시 읽기 |
 | `diary_log` | 일기봇 | 먹구름봇 읽기, 식사봇 읽기 (식사×감정 상관) |
-| `schedule_log` | 일정봇 | 먹구름봇 읽기 |
+| `schedules` | 일정봇 | 먹구름봇 읽기 |
 
 ---
 
 ## 6. 봇 간 통신 — task_queue 패턴
 
 > **핵심 원칙**: 봇 간 직접 HTTP 통신 없음. DB `task_queue` 테이블을 단일 통신 채널로 사용.  
-> 서브봇은 처리 결과를 **메인봇으로 반환하지 않음** — `personal_channel_id`에 직접 응답.
+> 서브봇은 처리 결과를 `result_json`에 저장 → 메인봇이 수신하여 유저에게 최종 응답 + Embed 갱신.
+>
+> **식사(meal)는 task_queue 미사용**: 메인봇이 버튼 제공 → 클릭 후 기존 Modal/식사봇 흐름 유지.
 
 ```
 [먹구름봇] on_message — 의도 분류 후:
-    1. task_queue INSERT { bot_target: "meal", user_id: ..., payload: {...} }
+
+  [meal 감지]
+    → 🍽️ 식사입력 버튼 전송 (task_queue INSERT 없음)
+    → 클릭 → 텍스트: MealInputModal(먹구름봇) / 사진: 식사봇 on_message 경로
+
+  [diary / schedule / weight 감지]
+    1. task_queue INSERT { bot_target, user_id, payload, status: 'pending' }
     2. intent_log INSERT (ML 학습 데이터 축적)
-    3. 먹구름봇 처리 종료 (서브봇 응답 대기 없음)
+    3. 먹구름봇: done 항목 폴링 루프 실행 (10~30초 간격)
 
 [서브봇] 폴링 루프 (5~30초 간격):
-    1. task_queue SELECT WHERE bot_target = 'meal' AND status = 'pending'
+    1. task_queue SELECT WHERE bot_target = 'xxx' AND status = 'pending'
     2. 처리 (GPT 파싱, DB 저장 등)
-    3. personal_channel_id 채널에 직접 Embed 응답
-    4. task_queue UPDATE status = 'done'
+    3. task_queue UPDATE { status: 'done', result_json: { ... } }
+       ※ result_json 예시:
+          체중봇 → { "weight": 68.5, "achieved_goal": false, "progress_pct": 72 }
+          일기봇 → { "emotion_tag": "슬픔", "comment": "오늘 많이 힘들었구나..." }
+          일정봇 → { "title": "병원 예약", "scheduled_at": "2026-04-21T15:00" }
+
+[먹구름봇] done 폴링 루프:
+    1. task_queue SELECT WHERE status = 'done' AND user_id = (내가 삽입한 항목)
+    2. result_json 파싱 → 결과 Embed 빌드
+    3. personal_channel_id에 결과 Embed 전송
+    4. 캐릭터 상태 Embed 갱신 (embed_message_id)
+    5. task_queue UPDATE status = 'archived'
 ```
 
 ### 사진 입력 — v4.0 직접 업로드 방식
