@@ -143,9 +143,11 @@ Discord 서버
 | 체중 기록 + 목표 관리 | bot_weight.py | 체중관리 | 🔄 skeleton (분리 예정) |
 | 스트릭 / 배지 / 주간 리포트 | bot.py | — | ✅ 구현 완료 |
 | 이메일 모니터링 | bot_mail.py | 메일함 | ✅ v3.1 완료 |
-| 음식 추천 (n8n) | bot.py | — | 🔧 준비 중 (n8n 연동 대기) |
-| 일기 / 감정 분석 | bot_diary.py | 일기장 | 📋 설계 완료, 구현 예정 |
-| 일정 / 캘린더 / 알림 | bot_schedule.py | 일정표 | 📋 설계 완료, 구현 예정 |
+| 음식 추천 (n8n) | bot.py | — | 🔧 준비 중 (웹훅 URL 수령 후 즉시 연동 가능) |
+| 일기 / 감정 분석 | bot_diary.py | 일기장 | 📋 구상 단계 (UX 미결, 코드 없음) |
+| 일정 / 캘린더 / 알림 | bot_schedule.py | 일정표 | 📋 구상 단계 (UX 미결, 코드 없음) |
+| 유저별 전용 채널 구조 | bot.py | — | 📋 v4.0 설계 완료, 구현 예정 |
+| ML 의도 분류기 | bot.py | — | 📋 v4.0 설계 완료, 데이터 수집부터 시작 |
 
 ---
 
@@ -194,21 +196,20 @@ Discord 서버
 N8N_FOOD_WEBHOOK_URL   # n8n 음식 추천 웹훅 URL
 ```
 
-### 위치 정보 상세화 (미결)
+### 위치 정보 상세화 (확정)
 
-현재 `users.city`는 시 단위 ("서울"). 추천 정확도를 위해 구/동 단위 필요.
-
-**권장 옵션 B: `address` 필드 별도 추가**
-- `city` — 날씨 API 전용 (기존 유지)
-- `address` — 음식 추천 전용 (신규, nullable)
+`address` 필드 별도 추가로 결정:
+- `city` — 날씨 API 전용 (기존 유지, 시 단위)
+- `address` — 음식 추천 전용 (신규, nullable, 구/동 단위 예: "마포구 합정동")
 - 날씨 코드 무변경, 기존 유저 영향 없음
+- **v4.0 채널 구조 전환 시 온보딩 모달에 address 필드 추가**
 
 ---
 
 ## Phase 4 — 일기봇 (bot_diary.py)
 
-> 상태: 설계 완료, 구현 예정  
-> 상세 문서: [`docs/bots/diary/`](bots/diary/) — OVERVIEW / FLOWS / DB / IMPLEMENTATION / ML
+> 상태: 📋 구상 단계 — UX 흐름 미결, 코드 없음  
+> 상세 문서: [`docs/bots/diary/`](bots/diary/)
 
 ### 개요
 
