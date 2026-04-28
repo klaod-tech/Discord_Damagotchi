@@ -108,6 +108,29 @@ def _build_weather_text(user: dict, weather_log: dict | None) -> str:
 # ══════════════════════════════════════════════════════
 # 식사 입력 Modal — 자연어 방식 + 합산 처리
 # ══════════════════════════════════════════════════════
+async def _post_meal_embed(
+    thread: discord.Thread,
+    user: dict,
+    user_id: str,
+    food_name: str,
+    delay: int = 60,
+):
+    await asyncio.sleep(delay)
+    from utils.db import get_tamagotchi, get_calories_by_date
+    from utils.gpt import generate_comment as gc
+    tama_final = get_tamagotchi(user_id)
+    if not tama_final:
+        return
+    comment_after = await gc(
+        context="식사 후 잠시 지났어. 평소처럼 한마디 해줘.",
+        user=user,
+        today_calories=get_calories_by_date(user_id, date.today()),
+        recent_meals=food_name,
+        weather_info=None,
+    )
+    await create_or_update_embed(thread, user, tama_final, comment_after)
+
+
 _meal_submitting: set[str] = set()  # 중복 제출 방지용 user_id 집합
 
 
@@ -151,76 +174,94 @@ class MealInputModal(discord.ui.Modal, title="🍽️ 식사 입력"):
 
             raw_text = self.food_input.value.strip()
 
-            # GPT로 자연어 파싱
-            parsed    = await parse_meal_input(raw_text)
-            days_ago  = parsed.get("days_ago", 0)
-            meal_type = parsed.get("meal_type", "식사")
-            food_name = parsed.get("food_name", raw_text)
-
-            target_date = date.today() - timedelta(days=days_ago)
-            is_past = days_ago > 0
-
-            if days_ago == 0:
-                date_label = "오늘"
-            elif days_ago == 1:
-                date_label = f"어제({target_date.strftime('%m/%d')})"
-            else:
-                date_label = f"그저께({target_date.strftime('%m/%d')})"
-
-            # 영양 분석: 식약처 DB 우선 → 없으면 GPT fallback
+            # GPT로 자연어 파싱 (다중 끼니 지원)
             from utils.nutrition import search_food_nutrition
-            result = await search_food_nutrition(food_name)
-            if result is None:
-                result = await analyze_meal_text(food_name)
-            calories = result.get("calories", 0)
-            protein  = result.get("protein", 0)
-            carbs    = result.get("carbs", 0)
-            fat      = result.get("fat", 0)
-            fiber    = result.get("fiber", 0)
+            parsed_meals = await parse_meal_input(raw_text)
 
-            # ML 칼로리 보정 (양 표현 + 개인화 모델)
-            calories = get_corrected_calories(
-                user_id=user_id,
-                food_name=food_name,
-                meal_type=meal_type,
-                gpt_calories=calories,
-            )
+            results           = []
+            any_today         = False
+            today_hunger_gain = 0
+            today_mood_gain   = 0
 
-            if calories == 0:
+            for parsed in parsed_meals:
+                days_ago  = parsed.get("days_ago", 0)
+                meal_type = parsed.get("meal_type", "식사")
+                food_name = parsed.get("food_name", raw_text)
+
+                target_date = date.today() - timedelta(days=days_ago)
+                is_past = days_ago > 0
+
+                if days_ago == 0:
+                    date_label = "오늘"
+                elif days_ago == 1:
+                    date_label = f"어제({target_date.strftime('%m/%d')})"
+                else:
+                    date_label = f"그저께({target_date.strftime('%m/%d')})"
+
+                result = await search_food_nutrition(food_name)
+                if result is None:
+                    result = await analyze_meal_text(food_name)
+                calories = result.get("calories", 0)
+                protein  = result.get("protein", 0)
+                carbs    = result.get("carbs", 0)
+                fat      = result.get("fat", 0)
+                fiber    = result.get("fiber", 0)
+
+                calories = get_corrected_calories(
+                    user_id=user_id,
+                    food_name=food_name,
+                    meal_type=meal_type,
+                    gpt_calories=calories,
+                )
+
+                if calories == 0:
+                    results.append({"error": True, "food_name": food_name})
+                    continue
+
+                create_meal(
+                    user_id=user_id,
+                    meal_type=meal_type,
+                    food_name=food_name,
+                    calories=calories,
+                    protein=protein,
+                    carbs=carbs,
+                    fat=fat,
+                    fiber=fiber,
+                    input_method="text",
+                    gpt_comment="",
+                    recorded_date=target_date if is_past else None,
+                )
+
+                if not is_past:
+                    any_today         = True
+                    today_hunger_gain += _hunger_gain(calories)
+                    today_mood_gain   += 5
+
+                results.append({
+                    "error":       False,
+                    "date_label":  date_label,
+                    "meal_type":   meal_type,
+                    "food_name":   food_name,
+                    "calories":    calories,
+                    "protein":     protein,
+                    "carbs":       carbs,
+                    "fat":         fat,
+                    "is_past":     is_past,
+                    "target_date": target_date,
+                })
+
+            ok_results = [r for r in results if not r.get("error")]
+
+            if not ok_results:
                 await interaction.followup.send(
-                    f"❌ **{food_name}**의 칼로리를 분석하지 못했어. 음식 이름을 더 구체적으로 입력해줘!",
-                    ephemeral=True,
+                    "❌ 식사 내용을 인식하지 못했어. 더 구체적으로 말해줘!", ephemeral=True
                 )
                 return
 
-            today_cal_before = get_calories_by_date(user_id, target_date)
-
-            comment = await generate_comment(
-                context=f"방금 {food_name}을 먹었어. 반응해줘!",
-                user=user,
-                today_calories=today_cal_before + calories,
-                recent_meals=food_name,
-                weather_info=None,
-            )
-
-            create_meal(
-                user_id=user_id,
-                meal_type=meal_type,
-                food_name=food_name,
-                calories=calories,
-                protein=protein,
-                carbs=carbs,
-                fat=fat,
-                fiber=fiber,
-                input_method="text",
-                gpt_comment=comment,
-                recorded_date=target_date if is_past else None,
-            )
-
-            if not is_past:
-                new_hunger = min(100, (tama.get("hunger") or 50) + _hunger_gain(calories))
-                new_mood   = min(100, (tama.get("mood") or 50) + 5)
-                new_hp     = min(100, (tama.get("hp") or 100) + 5)
+            if any_today:
+                new_hunger = min(100, (tama.get("hunger") or 50) + today_hunger_gain)
+                new_mood   = min(100, (tama.get("mood") or 50) + today_mood_gain)
+                new_hp     = min(100, (tama.get("hp") or 100) + today_mood_gain)
                 update_tamagotchi(user_id, {
                     "hunger":      new_hunger,
                     "mood":        new_mood,
@@ -228,31 +269,46 @@ class MealInputModal(discord.ui.Modal, title="🍽️ 식사 입력"):
                     "last_fed_at": datetime.utcnow().isoformat(),
                 })
 
-            today_cal = get_calories_by_date(user_id, target_date)
+            food_names = ", ".join(r["food_name"] for r in ok_results)
+            today_cal  = get_calories_by_date(user_id, date.today())
 
-            await interaction.followup.send(
-                f"✅ **{date_label} {meal_type}** — {food_name}\n"
-                f"칼로리: **{calories} kcal** | "
-                f"단백질: {protein}g | 탄수화물: {carbs}g | 지방: {fat}g\n"
-                f"{date_label} 총 칼로리: **{today_cal} kcal**",
-                ephemeral=True,
+            comment = await generate_comment(
+                context=f"방금 {food_names}을 먹었어. 반응해줘!",
+                user=user,
+                today_calories=today_cal,
+                recent_meals=food_names,
+                weather_info=None,
             )
 
-            if is_past and is_all_meals_done_on_date(user_id, target_date):
-                meals      = get_meals_by_date(user_id, target_date)
-                total      = get_calories_by_date(user_id, target_date)
-                target_cal = user.get("daily_cal_target") or 2000
-                thread_id  = user.get("thread_id")
-                if thread_id:
-                    guild  = interaction.guild
-                    thread = guild.get_thread(int(thread_id))
-                    if thread:
-                        await _send_daily_analysis(
-                            thread, user, tama, meals, total, target_cal, target_date
-                        )
-                return
+            lines = []
+            for r in results:
+                if r.get("error"):
+                    lines.append(f"⚠️ **{r['food_name']}** — 칼로리 분석 실패")
+                else:
+                    lines.append(
+                        f"✅ **{r['date_label']} {r['meal_type']}** — {r['food_name']}\n"
+                        f"칼로리: **{r['calories']} kcal** | "
+                        f"단백질: {r['protein']}g | 탄수화물: {r['carbs']}g | 지방: {r['fat']}g"
+                    )
+            lines.append(f"\n오늘 총 칼로리: **{today_cal} kcal**")
+            await interaction.followup.send("\n".join(lines), ephemeral=True)
 
-            if not is_past:
+            past_dates = {r["target_date"] for r in ok_results if r["is_past"]}
+            for pd in past_dates:
+                if is_all_meals_done_on_date(user_id, pd):
+                    meals_pd   = get_meals_by_date(user_id, pd)
+                    total      = get_calories_by_date(user_id, pd)
+                    target_cal = user.get("daily_cal_target") or 2000
+                    thread_id  = user.get("thread_id")
+                    if thread_id:
+                        guild  = interaction.guild
+                        thread = guild.get_thread(int(thread_id))
+                        if thread:
+                            await _send_daily_analysis(
+                                thread, user, tama, meals_pd, total, target_cal, pd
+                            )
+
+            if any_today:
                 thread_id = user.get("thread_id")
                 if thread_id:
                     guild  = interaction.guild
@@ -262,17 +318,9 @@ class MealInputModal(discord.ui.Modal, title="🍽️ 식사 입력"):
                         await create_or_update_embed(
                             thread, user, tama_updated, comment, just_ate=True
                         )
-                        await asyncio.sleep(180)
-                        tama_final = get_tamagotchi(user_id)
-                        from utils.gpt import generate_comment as gc
-                        comment_after = await gc(
-                            context="식사 후 잠시 지났어. 평소처럼 한마디 해줘.",
-                            user=user,
-                            today_calories=get_calories_by_date(user_id, date.today()),
-                            recent_meals=food_name,
-                            weather_info=None,
+                        asyncio.create_task(
+                            _post_meal_embed(thread, user, user_id, food_names)
                         )
-                        await create_or_update_embed(thread, user, tama_final, comment_after)
 
         except Exception as e:
             print(f"[MealInputModal 오류] {e}")
@@ -428,7 +476,7 @@ class MainView(discord.ui.View):
             )
             from utils.gpt import generate_comment
             from utils.pattern import analyze_eating_patterns
-            from cogs.weight import get_weight_history
+            from utils.weight_ui import get_weight_history
 
             user_id = str(interaction.user.id)
             user    = get_user(user_id)
@@ -657,7 +705,7 @@ class MainView(discord.ui.View):
         self, interaction: discord.Interaction, button: discord.ui.Button
     ):
         print(f"[weight_button] 클릭 — user: {interaction.user}")
-        from cogs.weight import WeightInputModal
+        from utils.weight_ui import WeightInputModal
         await interaction.response.send_modal(WeightInputModal())
 
 
@@ -705,7 +753,8 @@ async def create_or_update_embed(
         msg = await thread.send(embed=embed, view=view)
 
     from utils.db import set_embed_message_id, update_tamagotchi
-    set_embed_message_id(str(thread.owner_id or ""), str(msg.id))
-    update_tamagotchi(str(thread.owner_id or ""), {"current_image": image_filename})
+    uid = str(user.get("user_id") or thread.owner_id or "")
+    set_embed_message_id(uid, str(msg.id))
+    update_tamagotchi(uid, {"current_image": image_filename})
 
     return str(msg.id)

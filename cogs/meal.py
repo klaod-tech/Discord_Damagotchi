@@ -10,9 +10,10 @@ cogs/meal.py — 사진 식사 입력 기능
 ────────────────────────────────────────────────────────────────
 """
 
+import asyncio
 import discord
 from discord.ext import commands
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import aiohttp
 import base64
 import time
@@ -20,11 +21,13 @@ import time
 from utils.db import (
     get_user, get_tamagotchi, create_meal,
     update_tamagotchi, get_calories_by_date,
+    get_meals_by_date, is_all_meals_done_on_date,
     is_meal_waiting, clear_meal_waiting,
 )
-from utils.gpt import generate_comment
+from utils.gpt import generate_comment, parse_meal_input, analyze_meal_text
 from utils.gpt_ml_bridge import get_corrected_calories
-from utils.embed import create_or_update_embed, _hunger_gain
+from utils.nutrition import search_food_nutrition
+from utils.embed import create_or_update_embed, _hunger_gain, _post_meal_embed, _send_daily_analysis
 
 
 # ──────────────────────────────────────────────
@@ -146,6 +149,7 @@ class MealPhotoConfirmView(discord.ui.View):
         self.user_id  = user_id
         self.analysis = analysis
         self.recorded = False
+        self.message: discord.Message | None = None
 
     @discord.ui.button(label="✅ 기록하기", style=discord.ButtonStyle.success)
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -274,6 +278,11 @@ class MealPhotoConfirmView(discord.ui.View):
     async def on_timeout(self):
         for child in self.children:
             child.disabled = True
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except discord.HTTPException:
+                pass
 
 
 # ──────────────────────────────────────────────
@@ -290,6 +299,7 @@ class MealPhotoDetectView(discord.ui.View):
         self.user_id   = user_id
         self.image_url = image_url
         self.analyzed  = False
+        self.message: discord.Message | None = None
 
     @discord.ui.button(label="✅ 분석하기", style=discord.ButtonStyle.primary)
     async def analyze(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -326,7 +336,8 @@ class MealPhotoDetectView(discord.ui.View):
                 child.disabled = True
             await interaction.message.edit(view=self)
 
-            await interaction.followup.send(embed=embed, view=confirm_view)
+            confirm_msg = await interaction.followup.send(embed=embed, view=confirm_view)
+            confirm_view.message = confirm_msg
 
         except Exception as e:
             print(f"[MealPhotoDetectView 분석 오류] {e}")
@@ -350,6 +361,165 @@ class MealPhotoDetectView(discord.ui.View):
     async def on_timeout(self):
         for child in self.children:
             child.disabled = True
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except discord.HTTPException:
+                pass
+
+
+# ──────────────────────────────────────────────
+# 텍스트 식사 입력 처리 (식사 기록 쓰레드 직접 입력)
+# ──────────────────────────────────────────────
+
+async def _process_text_meal(message: discord.Message, user_id: str, user: dict):
+    tama = get_tamagotchi(user_id)
+    if not tama:
+        return
+
+    raw_text = message.content.strip()
+    if not raw_text:
+        return
+
+    thinking_msg = await message.reply("🤔 분석 중...")
+
+    results           = []
+    today_hunger_gain = 0
+    today_mood_gain   = 0
+    any_today         = False
+
+    parsed_meals = await parse_meal_input(raw_text)
+    for parsed in parsed_meals:
+        days_ago  = parsed.get("days_ago", 0)
+        meal_type = parsed.get("meal_type", "식사")
+        food_name = parsed.get("food_name", raw_text)
+
+        target_date = date.today() - timedelta(days=days_ago)
+        is_past     = days_ago > 0
+
+        if days_ago == 0:
+            date_label = "오늘"
+        elif days_ago == 1:
+            date_label = f"어제({target_date.strftime('%m/%d')})"
+        else:
+            date_label = f"그저께({target_date.strftime('%m/%d')})"
+
+        result = await search_food_nutrition(food_name)
+        if result is None:
+            result = await analyze_meal_text(food_name)
+        calories = result.get("calories", 0)
+        protein  = result.get("protein", 0)
+        carbs    = result.get("carbs", 0)
+        fat      = result.get("fat", 0)
+        fiber    = result.get("fiber", 0)
+
+        calories = get_corrected_calories(
+            user_id=user_id,
+            food_name=food_name,
+            meal_type=meal_type,
+            gpt_calories=calories,
+        )
+
+        if calories == 0:
+            results.append({"error": True, "food_name": food_name})
+            continue
+
+        create_meal(
+            user_id=user_id,
+            meal_type=meal_type,
+            food_name=food_name,
+            calories=calories,
+            protein=protein,
+            carbs=carbs,
+            fat=fat,
+            fiber=fiber,
+            input_method="text",
+            gpt_comment="",
+            recorded_date=target_date if is_past else None,
+        )
+
+        if not is_past:
+            any_today         = True
+            today_hunger_gain += _hunger_gain(calories)
+            today_mood_gain   += 5
+
+        results.append({
+            "error":       False,
+            "date_label":  date_label,
+            "meal_type":   meal_type,
+            "food_name":   food_name,
+            "calories":    calories,
+            "protein":     protein,
+            "carbs":       carbs,
+            "fat":         fat,
+            "is_past":     is_past,
+            "target_date": target_date,
+        })
+
+    ok_results = [r for r in results if not r.get("error")]
+
+    if not ok_results:
+        await thinking_msg.edit(content="❌ 식사 내용을 인식하지 못했어. 더 구체적으로 말해줘!")
+        return
+
+    if any_today:
+        new_hunger = min(100, (tama.get("hunger") or 50) + today_hunger_gain)
+        new_mood   = min(100, (tama.get("mood") or 50) + today_mood_gain)
+        new_hp     = min(100, (tama.get("hp") or 100) + today_mood_gain)
+        update_tamagotchi(user_id, {
+            "hunger":      new_hunger,
+            "mood":        new_mood,
+            "hp":          new_hp,
+            "last_fed_at": datetime.utcnow().isoformat(),
+        })
+
+    food_names = ", ".join(r["food_name"] for r in ok_results)
+    today_cal  = get_calories_by_date(user_id, date.today())
+
+    comment = await generate_comment(
+        context=f"방금 {food_names}을 먹었어. 반응해줘!",
+        user=user,
+        today_calories=today_cal,
+        recent_meals=food_names,
+        weather_info=None,
+    )
+
+    lines = []
+    for r in results:
+        if r.get("error"):
+            lines.append(f"⚠️ **{r['food_name']}** — 칼로리 분석 실패")
+        else:
+            lines.append(
+                f"✅ **{r['date_label']} {r['meal_type']}** — {r['food_name']}\n"
+                f"칼로리: **{r['calories']} kcal** | "
+                f"단백질: {r['protein']}g | 탄수화물: {r['carbs']}g | 지방: {r['fat']}g"
+            )
+    lines.append(f"\n오늘 총 칼로리: **{today_cal} kcal**")
+    await thinking_msg.edit(content="\n".join(lines))
+
+    past_dates = {r["target_date"] for r in ok_results if r["is_past"]}
+    for pd in past_dates:
+        if is_all_meals_done_on_date(user_id, pd):
+            meals_pd   = get_meals_by_date(user_id, pd)
+            total      = get_calories_by_date(user_id, pd)
+            target_cal = user.get("daily_cal_target") or 2000
+            thread_id  = user.get("thread_id")
+            if thread_id:
+                thread = message.guild.get_thread(int(thread_id)) if message.guild else None
+                if thread:
+                    await _send_daily_analysis(thread, user, tama, meals_pd, total, target_cal, pd)
+
+    if any_today:
+        thread_id = user.get("thread_id")
+        if thread_id:
+            guild  = message.guild
+            thread = guild.get_thread(int(thread_id)) if guild else None
+            if thread:
+                tama_updated = get_tamagotchi(user_id)
+                await create_or_update_embed(thread, user, tama_updated, comment, just_ate=True)
+                asyncio.create_task(
+                    _post_meal_embed(thread, user, user_id, food_names)
+                )
 
 
 # ──────────────────────────────────────────────
@@ -364,32 +534,16 @@ class MealPhotoCog(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """
-        유저 전용 쓰레드에 사진 첨부 시 감지.
+        유저 전용 쓰레드에서 사진 또는 텍스트로 식사 입력 감지.
         """
-        # 봇 메시지 무시
         if message.author.bot:
             return
 
-        # 첨부파일 없으면 무시
-        if not message.attachments:
-            return
-
-        # 이미지 첨부 확인
-        image_attachments = [
-            a for a in message.attachments
-            if a.content_type and a.content_type.startswith("image/")
-        ]
-        if not image_attachments:
-            return
-
-        # 쓰레드인지 확인
         if not isinstance(message.channel, discord.Thread):
             return
 
         user_id = str(message.author.id)
         user    = get_user(user_id)
-
-        # 등록된 유저인지 확인
         if not user:
             return
 
@@ -398,30 +552,39 @@ class MealPhotoCog(commands.Cog):
         if str(allowed_thread_id or "") != str(message.channel.id):
             return
 
-        # 첫 번째 이미지만 처리
-        image_url = image_attachments[0].url
+        # 이미지 첨부 확인 → 사진 입력 처리
+        image_attachments = [
+            a for a in message.attachments
+            if a.content_type and a.content_type.startswith("image/")
+        ]
+        if image_attachments:
+            image_url = image_attachments[0].url
 
-        # 사진 입력 대기 중인 유저인지 확인 (DB 기반)
-        if is_meal_waiting(user_id):
-            clear_meal_waiting(user_id)
-            thinking_msg = await message.channel.send("📸 사진 분석 중... 잠깐만 기다려줘!")
-            try:
-                analysis = await analyze_food_image(image_url)
-                embed = _build_analysis_embed(analysis)
-                confirm_view = MealPhotoConfirmView(user_id=user_id, analysis=analysis)
-                await thinking_msg.delete()
-                await message.channel.send(embed=embed, view=confirm_view)
-            except Exception as e:
-                print(f"[on_message 사진 분석 오류] {e}")
-                import traceback
-                traceback.print_exc()
-                await thinking_msg.edit(content=f"❌ 음식 인식에 실패했어: {e}\n텍스트로 직접 입력해줘!")
+            if is_meal_waiting(user_id):
+                clear_meal_waiting(user_id)
+                thinking_msg = await message.channel.send("📸 사진 분석 중... 잠깐만 기다려줘!")
+                try:
+                    analysis = await analyze_food_image(image_url)
+                    embed = _build_analysis_embed(analysis)
+                    confirm_view = MealPhotoConfirmView(user_id=user_id, analysis=analysis)
+                    await thinking_msg.delete()
+                    confirm_msg = await message.channel.send(embed=embed, view=confirm_view)
+                    confirm_view.message = confirm_msg
+                except Exception as e:
+                    print(f"[on_message 사진 분석 오류] {e}")
+                    import traceback
+                    traceback.print_exc()
+                    await thinking_msg.edit(content=f"❌ 음식 인식에 실패했어: {e}\n텍스트로 직접 입력해줘!")
+                return
+
+            detect_view = MealPhotoDetectView(user_id=user_id, image_url=image_url)
+            detect_msg = await message.channel.send("📸 음식 사진이에요?", view=detect_view)
+            detect_view.message = detect_msg
             return
 
-        await message.channel.send(
-            f"📸 음식 사진이에요?",
-            view=MealPhotoDetectView(user_id=user_id, image_url=image_url),
-        )
+        # 텍스트 입력 → 식사 파싱 처리
+        if message.content.strip() and not message.content.strip().startswith(('/', '!')):
+            await _process_text_meal(message, user_id, user)
 
 
 async def setup(bot: commands.Bot):

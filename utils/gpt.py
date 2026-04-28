@@ -77,46 +77,53 @@ async def calculate_daily_calories(
 
 
 # ── 자연어 식사 입력 파싱 ─────────────────────────────
-async def parse_meal_input(raw_text: str) -> dict:
+async def parse_meal_input(raw_text: str) -> list[dict]:
     """
     유저의 자연어 입력에서 날짜 / 식사 종류 / 음식명을 추출.
+    끼니가 여러 개이면 각각 추출하여 리스트로 반환.
 
     입력 예시:
       "어제 저녁에 치킨 먹었어"
-      "오늘 점심 삼겹살이랑 된장찌개"
-      "그저께 아침에 시리얼"
-      "라면 한 그릇" (날짜/종류 생략 시 오늘/식사로 처리)
+      "오늘 아침 치킨 먹었어. 오늘 점심은 샌드위치 2개 먹었어"
+      "아침 시리얼\\n점심 짜장면"
 
     Returns:
-      {
-        "days_ago": 0 | 1 | 2,       # 0=오늘, 1=어제, 2=그저께
-        "meal_type": "아침"|"점심"|"저녁"|"간식",
-        "food_name": "음식명 문자열"
-      }
+      [{"days_ago": 0|1|2, "meal_type": "아침"|"점심"|"저녁"|"간식"|"식사", "food_name": "..."}]
     """
     prompt = (
-        "다음 문장에서 날짜, 식사 종류, 음식명을 추출해줘.\n\n"
+        "다음 문장에서 날짜, 식사 종류, 음식명을 추출해줘.\n"
+        "끼니가 여러 개이면 각각 추출해줘.\n\n"
         f"입력: \"{raw_text}\"\n\n"
         "규칙:\n"
         "- days_ago: 오늘=0, 어제/1일전=1, 그저께/그제/2일전=2 (언급 없으면 0)\n"
         "- meal_type: 아침/점심/저녁/간식 중 하나 (언급 없으면 '식사')\n"
-        "- food_name: 음식명만 깔끔하게 추출 (조사/어미 제거)\n\n"
+        "- food_name: 음식명과 수량을 함께 추출 (조사/어미만 제거, 수량은 유지)\n\n"
         "JSON으로만 답해줘 (다른 텍스트 없이):\n"
-        '{"days_ago": 숫자, "meal_type": "문자열", "food_name": "문자열"}'
+        '{"meals": [{"days_ago": 숫자, "meal_type": "문자열", "food_name": "문자열"}, ...]}'
     )
     resp = await _client.chat.completions.create(
         model=MODEL,
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=60,
+        max_tokens=300,
         temperature=0,
         response_format={"type": "json_object"},
     )
     data = json.loads(resp.choices[0].message.content)
-    return {
-        "days_ago": int(data.get("days_ago", 0)),
-        "meal_type": str(data.get("meal_type", "식사")),
-        "food_name": str(data.get("food_name", raw_text)),
-    }
+    meals = data.get("meals", [])
+    if isinstance(meals, dict):
+        meals = [meals]
+    if not meals:
+        meals = [data]
+    result = [
+        {
+            "days_ago":  int(m.get("days_ago", 0)),
+            "meal_type": str(m.get("meal_type", "식사")),
+            "food_name": str(m.get("food_name", "")),
+        }
+        for m in meals
+        if m.get("food_name")
+    ]
+    return result or [{"days_ago": 0, "meal_type": "식사", "food_name": raw_text}]
 
 
 # ── 텍스트 식사 분석 ───────────────────────────────────

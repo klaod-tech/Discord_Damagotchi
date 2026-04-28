@@ -14,10 +14,11 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 from utils.db import init_db
+from utils.thread_helper import join_assigned_threads, join_if_mine
 
 load_dotenv()
 
-MAIL_BOT_TOKEN = os.getenv("DISCORD_TOKEN_EMAIL")
+MAIL_BOT_TOKEN = os.getenv("DISCORD_TOKEN_MAIL")
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -26,6 +27,12 @@ intents.members = True
 bot = commands.Bot(command_prefix="!mail_", intents=intents)
 
 _bot_ready = False
+
+
+@bot.event
+async def on_thread_create(thread: discord.Thread):
+    await join_if_mine(bot, thread, "mail_thread_id")
+
 
 @bot.event
 async def on_ready():
@@ -37,7 +44,9 @@ async def on_ready():
 
     init_db()
     await bot.tree.sync()
+    await join_assigned_threads(bot, "mail_thread_id")
     print(f"[메일봇] {bot.user} 로그인 완료 — 1분 폴링 시작")
+
 
 @bot.event
 async def on_error(event, *args, **kwargs):
