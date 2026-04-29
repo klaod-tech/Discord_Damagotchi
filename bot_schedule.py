@@ -40,6 +40,14 @@ async def on_ready():
     print(f"[일정봇] {bot.user} 로그인 완료")
 
 @bot.event
+async def on_thread_create(thread: discord.Thread):
+    if "일정" in thread.name:
+        try:
+            await thread.join()
+        except Exception:
+            pass
+
+@bot.event
 async def on_error(event, *args, **kwargs):
     import traceback
     traceback.print_exc()

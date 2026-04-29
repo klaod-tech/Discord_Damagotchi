@@ -79,13 +79,13 @@ docs/bots/
 
 | 봇 | 폴더 | 상태 | 토큰 | 로드맵 |
 |----|------|------|------|--------|
-| 먹구름봇 (오케스트레이터) | `mukgoorm/` | ✅ 운영 (v3.2) | `DISCORD_TOKEN` | [ROADMAP](mukgoorm/ROADMAP.md) |
+| 먹구름봇 (오케스트레이터) | `mukgoorm/` | ✅ 운영 (v4.0) | `DISCORD_TOKEN` | [ROADMAP](mukgoorm/ROADMAP.md) |
 | 메일봇 | `email/` | ✅ 운영 (v3.1) | `DISCORD_TOKEN_EMAIL` | [ROADMAP](email/ROADMAP.md) |
 | 식사봇 | `meal/` | ✅ 운영 (v3.2) | `DISCORD_TOKEN_MEAL` | [ROADMAP](meal/ROADMAP.md) |
 | 날씨봇 | `weather/` | ✅ 운영 (v3.2) | `DISCORD_TOKEN_WEATHER` | [ROADMAP](weather/ROADMAP.md) |
-| 체중관리봇 | `weight/` | 🔄 skeleton → 분리 필요 | `DISCORD_TOKEN_WEIGHT` (발급 필요) | [ROADMAP](weight/ROADMAP.md) |
-| 일기봇 | `diary/` | 📋 미구현 | `DISCORD_TOKEN_DIARY` (발급 필요) | [ROADMAP](diary/ROADMAP.md) |
-| 일정봇 | `schedule/` | 📋 미구현 | `DISCORD_TOKEN_SCHEDULE` (발급 필요) | [ROADMAP](schedule/ROADMAP.md) |
+| 체중관리봇 | `weight/` | ✅ 운영 (v3.2) | `DISCORD_TOKEN_WEIGHT` | [ROADMAP](weight/ROADMAP.md) |
+| 일기봇 | `diary/` | 🔄 스레드 참여만 완료 (cog 미구현) | `DISCORD_TOKEN_DIARY` | [ROADMAP](diary/ROADMAP.md) |
+| 일정봇 | `schedule/` | 🔄 스레드 참여만 완료 (cog 미구현) | `DISCORD_TOKEN_SCHEDULE` | [ROADMAP](schedule/ROADMAP.md) |
 
 전체 제작 순서 및 Phase 계획: [`docs/PRODUCTION_ROADMAP.md`](../PRODUCTION_ROADMAP.md)
 

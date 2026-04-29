@@ -122,6 +122,8 @@ def init_db():
         ("weight_thread_id",   "TEXT"),
         ("meal_waiting_until", "TIMESTAMP"),  # 사진 입력 대기 만료 시각
         ("user_channel_id",    "TEXT"),       # 유저 전용 비공개 채널 ID (v3.3)
+        ("diary_thread_id",    "TEXT"),       # 일기 전용 스레드 ID (v3.4)
+        ("schedule_thread_id", "TEXT"),       # 일정 전용 스레드 ID (v3.5)
     ]:
         cur.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {col_type}")
 
@@ -564,7 +566,9 @@ def reset_user_threads(user_id: str):
             mail_thread_id    = NULL,
             meal_thread_id    = NULL,
             weather_thread_id = NULL,
-            weight_thread_id  = NULL
+            weight_thread_id  = NULL,
+            diary_thread_id   = NULL,
+            schedule_thread_id = NULL
         WHERE user_id = %s
     """, (user_id,))
     conn.commit()
@@ -613,6 +617,28 @@ def set_weight_thread_id(user_id: str, thread_id: str):
     cur = conn.cursor()
     cur.execute(
         "UPDATE users SET weight_thread_id = %s WHERE user_id = %s",
+        (thread_id, user_id),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def set_diary_thread_id(user_id: str, thread_id: str):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET diary_thread_id = %s WHERE user_id = %s",
+        (thread_id, user_id),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def set_schedule_thread_id(user_id: str, thread_id: str):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET schedule_thread_id = %s WHERE user_id = %s",
         (thread_id, user_id),
     )
     conn.commit()

@@ -33,10 +33,10 @@ logger = logging.getLogger(__name__)
 
 async def generate_comment_with_pattern(
     user_id: str,
+    user: dict,
     daily_cal_target: int,
     today_calories: int,
     meal_summary: str,
-    tamagotchi_name: str = "다마고치",
     include_forecast: bool = False,
 ) -> str:
     """
@@ -44,12 +44,12 @@ async def generate_comment_with_pattern(
 
     Parameters
     ----------
-    user_id           : 디스코드 유저 ID
-    daily_cal_target  : 권장 칼로리
-    today_calories    : 오늘 총 섭취 칼로리
-    meal_summary      : 오늘 식사 요약 문자열
-    tamagotchi_name   : 다마고치 이름
-    include_forecast  : Prophet 예측 포함 여부
+    user_id          : 디스코드 유저 ID
+    user             : get_user() 반환 dict
+    daily_cal_target : 권장 칼로리
+    today_calories   : 오늘 총 섭취 칼로리
+    meal_summary     : 오늘 식사 요약 문자열
+    include_forecast : Prophet 예측 포함 여부
 
     Returns
     -------
@@ -71,11 +71,15 @@ async def generate_comment_with_pattern(
 
     # 4. 기존 generate_comment에 extra_context 주입
     comment = await generate_comment(
-        tamagotchi_name  = tamagotchi_name,
-        today_calories   = today_calories,
-        daily_cal_target = daily_cal_target,
-        meal_summary     = meal_summary,
-        extra_context    = full_context,   # ← 기존 gpt.py에 파라미터 추가 필요
+        context=(
+            f"오늘 하루 기록을 봐줘. "
+            f"목표 {daily_cal_target}kcal 중 {today_calories}kcal 먹었어. "
+            f"짧게 한마디 해줘!"
+        ),
+        user=user,
+        today_calories=today_calories,
+        recent_meals=meal_summary,
+        extra_context=full_context,
     )
 
     return comment

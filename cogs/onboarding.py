@@ -15,6 +15,8 @@ from utils.db import (
     set_meal_thread_id,
     set_weather_thread_id,
     set_weight_thread_id,
+    set_diary_thread_id,
+    set_schedule_thread_id,
     set_user_channel_id,
     reset_user_threads,
     update_tamagotchi,
@@ -23,17 +25,7 @@ from utils.gpt import calculate_daily_calories, generate_comment
 from utils.embed import create_or_update_embed
 
 TAMAGOTCHI_CHANNEL_ID = int(os.getenv("TAMAGOTCHI_CHANNEL_ID", "0"))
-
-# 모든 봇의 Client ID (채널 권한 부여용)
-BOT_CLIENT_IDS = [
-    int(os.getenv("DISCORD_CLIENT_ID_MAIN",     "1486922369430847658")),
-    int(os.getenv("DISCORD_CLIENT_ID_MAIL",     "1492889369273565194")),
-    int(os.getenv("DISCORD_CLIENT_ID_MEAL",     "1493053617735860294")),
-    int(os.getenv("DISCORD_CLIENT_ID_WEATHER",  "1493055419394822144")),
-    int(os.getenv("DISCORD_CLIENT_ID_WEIGHT",   "1493056034405748796")),
-    int(os.getenv("DISCORD_CLIENT_ID_DIARY",    "1493056401457676419")),
-    int(os.getenv("DISCORD_CLIENT_ID_SCHEDULE", "1493056708228939957")),
-]
+BOT_ROLE_ID = int(os.getenv("BOT_ROLE_ID", "0"))
 
 
 # ══════════════════════════════════════════════════════
@@ -137,30 +129,23 @@ class OnboardingModal(discord.ui.Modal, title="먹구름 시작하기"):
 
             # ── 유저 전용 비공개 채널 생성 ──────────────────────────
             guild = interaction.guild
-            base_ch = guild.get_channel(TAMAGOTCHI_CHANNEL_ID)
-            category = base_ch.category if base_ch else None
 
             overwrites = {
                 guild.default_role: discord.PermissionOverwrite(view_channel=False),
                 interaction.user: discord.PermissionOverwrite(
                     view_channel=True, send_messages=True, read_message_history=True
                 ),
-                guild.me: discord.PermissionOverwrite(
-                    view_channel=True, send_messages=True,
-                    manage_channels=True, manage_threads=True, manage_messages=True
-                ),
             }
-            for bot_id in BOT_CLIENT_IDS:
-                member = guild.get_member(bot_id)
-                if member and member != guild.me:
-                    overwrites[member] = discord.PermissionOverwrite(
+            if BOT_ROLE_ID:
+                bot_role = guild.get_role(BOT_ROLE_ID)
+                if bot_role:
+                    overwrites[bot_role] = discord.PermissionOverwrite(
                         view_channel=True, send_messages=True, read_message_history=True
                     )
 
             user_channel = await guild.create_text_channel(
                 name=f"{interaction.user.display_name}의 먹구름",
                 overwrites=overwrites,
-                category=category,
             )
             set_user_channel_id(user_id, str(user_channel.id))
             # ────────────────────────────────────────────────────────
@@ -223,6 +208,30 @@ class OnboardingModal(discord.ui.Modal, title="먹구름 시작하기"):
                 f"여기는 **체중관리 전용** 스레드야.\n"
                 f"체중을 기록하면 목표 달성률과 추이를 여기에 보여줄게!\n"
                 f"목표 체중: **{goal_weight}kg**"
+            )
+
+            diary_thread = await user_channel.create_thread(
+                name=f"📔 {interaction.user.display_name}의 일기장",
+                auto_archive_duration=10080,
+                type=discord.ChannelType.public_thread,
+            )
+            set_diary_thread_id(user_id, str(diary_thread.id))
+            await diary_thread.send(
+                f"📔 안녕, {interaction.user.mention}!\n"
+                f"여기는 **일기 전용** 스레드야.\n"
+                f"오늘 있었던 일이나 감정을 자유롭게 적어줘. 감정을 분석해줄게!"
+            )
+
+            schedule_thread = await user_channel.create_thread(
+                name=f"📅 {interaction.user.display_name}의 일정표",
+                auto_archive_duration=10080,
+                type=discord.ChannelType.public_thread,
+            )
+            set_schedule_thread_id(user_id, str(schedule_thread.id))
+            await schedule_thread.send(
+                f"📅 안녕, {interaction.user.mention}!\n"
+                f"여기는 **일정 알림 전용** 스레드야.\n"
+                f"`/일정추가` 로 일정을 등록하면 시간에 맞춰 알려줄게!"
             )
 
             await thread.send(

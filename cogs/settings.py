@@ -25,10 +25,21 @@ class InfoModal(discord.ui.Modal, title="👤 내 정보 변경"):
         super().__init__(**kwargs)
         self._user = user
 
+        from utils.weight_ui import get_latest_weight
+        latest_weight = get_latest_weight(str(user.get("user_id", "")))
+        current_w = str(latest_weight) if latest_weight else str(user.get("init_weight", ""))
+
         self.tama_name = discord.ui.TextInput(
             label="다마고치 이름",
             default=user.get("tamagotchi_name", ""),
             max_length=20,
+        )
+        self.current_weight = discord.ui.TextInput(
+            label="현재 체중 (kg)",
+            placeholder="체중 기록이 없으면 비워두세요",
+            default=current_w,
+            max_length=6,
+            required=False,
         )
         self.goal_weight = discord.ui.TextInput(
             label="목표 체중 (kg)",
@@ -37,6 +48,7 @@ class InfoModal(discord.ui.Modal, title="👤 내 정보 변경"):
         )
 
         self.add_item(self.tama_name)
+        self.add_item(self.current_weight)
         self.add_item(self.goal_weight)
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -60,8 +72,25 @@ class InfoModal(discord.ui.Modal, title="👤 내 정보 변경"):
                             name=f"{interaction.user.display_name}의 {new_name}"
                         )
 
+            # 현재 체중 변경
+            if self.current_weight.value.strip():
+                try:
+                    new_current = float(self.current_weight.value.strip().replace("kg", ""))
+                    if 20.0 <= new_current <= 300.0:
+                        from utils.weight_ui import save_weight_log
+                        save_weight_log(user_id, new_current)
+                        messages.append(f"현재 체중: **{new_current}kg** 기록됨")
+                except ValueError:
+                    pass
+
             # 목표 체중 변경
-            new_goal = float(self.goal_weight.value.strip())
+            try:
+                new_goal = float(self.goal_weight.value.strip().replace("kg", ""))
+            except ValueError:
+                await interaction.followup.send(
+                    "❌ 목표 체중을 숫자로 입력해줘! (예: 70)", ephemeral=True
+                )
+                return
             if new_goal != old.get("goal_weight"):
                 updates["goal_weight"] = new_goal
                 messages.append(f"목표 체중: **{new_goal}kg**")
@@ -75,11 +104,13 @@ class InfoModal(discord.ui.Modal, title="👤 내 정보 변경"):
                 updates["daily_cal_target"] = new_cal
                 messages.append(f"권장 칼로리: **{new_cal} kcal/일**")
 
-            if not updates:
+            if not messages:
                 await interaction.followup.send("변경된 항목이 없어요!", ephemeral=True)
                 return
 
-            update_user(user_id, **updates)
+            if updates:
+                update_user(user_id, **updates)
+
             await interaction.followup.send(
                 "✅ 설정이 저장됐어요!\n" + "\n".join(f"• {m}" for m in messages),
                 ephemeral=True,

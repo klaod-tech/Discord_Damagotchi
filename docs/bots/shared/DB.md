@@ -62,7 +62,9 @@ CREATE TABLE users (
     -- v4.0 마이그레이션 (전용 채널 + Push 전용 쓰레드)
     personal_channel_id TEXT,                    -- 유저 전용 채널 (오케스트레이터 대화 + 서브봇 응답)
     info_thread_id      TEXT,                    -- Push 전용: 날씨 기상 알림 + 일정 D-day 알림
-    address             TEXT                     -- 음식 추천용 주소 (구/동 단위, nullable)
+    address             TEXT,                    -- 음식 추천용 주소 (구/동 단위, nullable)
+    diary_thread_id     TEXT,                    -- 일기봇 전용 쓰레드 ID
+    schedule_thread_id  TEXT                     -- 일정봇 전용 쓰레드 ID
 )
 ```
 
@@ -193,7 +195,6 @@ CREATE TABLE diary_log (
     gpt_reply  TEXT,                     -- 타마고치 공감 답변
     recorded_at TIMESTAMP DEFAULT NOW()
 );
--- users 컬럼 추가 필요: diary_thread_id TEXT
 ```
 
 ---
@@ -212,7 +213,6 @@ CREATE TABLE schedule_log (
     is_done      BOOLEAN DEFAULT FALSE,
     created_at   TIMESTAMP DEFAULT NOW()
 );
--- users 컬럼 추가 필요: schedule_thread_id TEXT
 ```
 
 ---
@@ -286,6 +286,8 @@ CREATE TABLE schedule_log (
 | `set_personal_channel_id(user_id, channel_id)` | None | 유저 전용 채널 ID (v4.0 온보딩) |
 | `set_info_thread_id(user_id, thread_id)` | None | Push 알림 쓰레드 ID (날씨+일정 통합) |
 | `set_mail_thread_id(user_id, thread_id)` | None | 메일봇 Push 쓰레드 ID |
+| `set_diary_thread_id(user_id, thread_id)` | None | 일기봇 전용 쓰레드 ID |
+| `set_schedule_thread_id(user_id, thread_id)` | None | 일정봇 전용 쓰레드 ID |
 | `set_meal_waiting(user_id, seconds=60)` | None | 사진 대기 만료 시각 설정 (v3.2 호환) |
 | `clear_meal_waiting(user_id)` | None | 사진 대기 해제 (v3.2 호환) |
 | `is_meal_waiting(user_id)` | bool | 사진 대기 중인지 확인 (v3.2 호환) |

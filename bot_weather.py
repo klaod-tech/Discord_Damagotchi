@@ -42,6 +42,15 @@ async def on_ready():
 
 
 @bot.event
+async def on_thread_create(thread: discord.Thread):
+    if "날씨" in thread.name:
+        try:
+            await thread.join()
+        except Exception:
+            pass
+
+
+@bot.event
 async def on_error(event, *args, **kwargs):
     import traceback
     traceback.print_exc()

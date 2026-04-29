@@ -474,6 +474,12 @@ class SchedulerCog(commands.Cog):
             thread = guild.get_thread(thread_id)
             if thread:
                 return thread
+            try:
+                channel = await guild.fetch_channel(thread_id)
+                if isinstance(channel, discord.Thread):
+                    return channel
+            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                continue
         return None
 
     def cog_unload(self):

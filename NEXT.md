@@ -1,33 +1,6 @@
 # 다음 작업 목록
 
-> 기준: 2026-04-29 | 이번 세션 작업 이후 상태
-
----
-
-## ✅ 완료된 항목 (이번 세션)
-
-| 항목 | 내용 |
-|------|------|
-| BUG-1 | `utils/nutrition.py` 수량 파싱 (`_parse_food_and_quantity`) + API 결과 이름 검증 |
-| BUG-2 | `cogs/meal.py` 사진 대기 만료 안내 메시지 추가 |
-| BUG-3 (일부) | 카테고리 재질문 기능 (`MEAL_CATEGORIES` 감지 → clarification 재요청) |
-| WEIGHT-1 | `bot_weight.py` 분리 활성화, `bot.py`에서 `cogs.weight` 제거 |
-| 인프라 | `all_bots.py` — 7개 봇 한 번에 실행 |
-| 인프라 | `/리셋` 슬래시 커맨드 구현 (채널 삭제 + DB 초기화) |
-| 인프라 | 시간 설정 1단계 안내 문구 추가 (`onboarding.py`) |
-| **아키텍처** | **유저 전용 비공개 채널 방식으로 전환** (스레드 join 문제 근본 해결) |
-
-### 아키텍처 변경 상세 (Private Channel)
-- **이전:** 공유 채널(`#먹구름`)에 비공개 스레드 → 서브봇 join 불가
-- **현재:** 시작하기 클릭 시 `{이름}의 먹구름` 비공개 채널 생성
-  - `@everyone` 차단, 유저 + 모든 봇 권한 부여
-  - 채널 내 공개 스레드 5개 (메인/메일/식사/날씨/체중)
-  - 봇들이 채널 권한으로 자동 접근 → 별도 join 불필요
-- **DB:** `user_channel_id` 컬럼 추가
-- **서브봇:** `on_thread_create` / `join_assigned_threads` 제거 (bot_meal/weather/weight/mail)
-- **리셋:** 채널 하나 삭제로 단순화 (스레드 자동 삭제)
-
-> ⚠️ **테스트 필요:** 봇 재시작 후 시작하기 → 채널 생성 + 스레드 참여 확인
+> 기준: 2026-04-29
 
 ---
 
@@ -56,6 +29,23 @@ comment = await generate_comment(
 # cogs/scheduler.py _nightly_analysis() 내
 # 기존: generate_comment(...)
 # 변경: generate_comment_with_pattern(user_id=..., user=..., daily_cal_target=..., ...)
+```
+
+---
+
+### MAIL-1. 메일봇 `on_thread_create` 미추가 (`bot_mail.py`)
+
+**증상:** 메일 스레드(`📧 {이름}의 메일함`) 생성 시 메일봇이 자동 참여하지 않음  
+**수정:** `bot_mail.py`에 아래 이벤트 추가
+
+```python
+@bot.event
+async def on_thread_create(thread: discord.Thread):
+    if "메일" in thread.name:
+        try:
+            await thread.join()
+        except Exception:
+            pass
 ```
 
 ---
@@ -142,14 +132,13 @@ def _suggest_cal_adjustment(current_weight, goal_weight, history, current_target
 
 ## 신규 봇 구현
 
-### BOT-1. 일기봇 (`bot_diary.py`) — v3.4
+### BOT-1. 일기봇 cog (`cogs/diary.py`) — v3.4
 
 **참고 문서:** `docs/bots/diary/`
 
 **구현 순서:**
 ```
-1. DB 마이그레이션
-   ALTER TABLE users ADD COLUMN IF NOT EXISTS diary_thread_id TEXT;
+1. DB 마이그레이션 (init_db 내)
    CREATE TABLE IF NOT EXISTS diary_log (
      log_id     SERIAL PRIMARY KEY,
      user_id    TEXT,
@@ -160,35 +149,27 @@ def _suggest_cal_adjustment(current_weight, goal_weight, history, current_target
    );
 
 2. utils/db.py
-   - set_diary_thread_id(user_id, thread_id)
    - create_diary_log(user_id, content, emotion, keywords)
    - get_diary_logs(user_id, limit=7)
 
 3. cogs/diary.py
-   - DiaryCog: on_message → 일기 스레드 텍스트 감지
+   - DiaryCog: on_message → diary_thread_id 감지
    - GPT 감정 분석 → diary_log 저장
    - 주간 감정 추이 Embed (/감정기록)
 
 4. bot_diary.py
-   - DISCORD_TOKEN_DIARY 환경변수 사용
-   - on_ready: init_db() 만 (thread_helper 불필요 — 채널 권한으로 자동 접근)
-
-5. cogs/onboarding.py
-   - 온보딩 시 "📔 {이름}의 일기장" 스레드 추가 생성 (user_channel 내부)
-   - set_diary_thread_id() 호출
-   - BOT_CLIENT_IDS에 DIARY bot ID 이미 포함됨
+   - await bot.load_extension("cogs.diary") 주석 해제
 ```
 
 ---
 
-### BOT-2. 일정봇 (`bot_schedule.py`) — v3.5
+### BOT-2. 일정봇 cog (`cogs/schedule.py`) — v3.5
 
 **참고 문서:** `docs/bots/schedule/`
 
 **구현 순서:**
 ```
-1. DB 마이그레이션
-   ALTER TABLE users ADD COLUMN IF NOT EXISTS schedule_thread_id TEXT;
+1. DB 마이그레이션 (init_db 내)
    CREATE TABLE IF NOT EXISTS schedules (
      schedule_id  SERIAL PRIMARY KEY,
      user_id      TEXT,
@@ -200,7 +181,6 @@ def _suggest_cal_adjustment(current_weight, goal_weight, history, current_target
    );
 
 2. utils/db.py
-   - set_schedule_thread_id(user_id, thread_id)
    - create_schedule / get_pending_schedules / mark_schedule_notified
 
 3. cogs/schedule.py
@@ -208,11 +188,89 @@ def _suggest_cal_adjustment(current_weight, goal_weight, history, current_target
    - /일정추가, /일정목록 슬래시 커맨드
 
 4. bot_schedule.py
-   - DISCORD_TOKEN_SCHEDULE 환경변수 사용
-   - on_ready: init_db() 만 (thread_helper 불필요)
+   - await bot.load_extension("cogs.schedule") 주석 해제
+```
 
-5. cogs/onboarding.py
-   - "📅 {이름}의 일정표" 스레드 추가 생성 (user_channel 내부)
+---
+
+## n8n 연동 — 음식 추천
+
+### N8N-1. 음식 추천 스레드 생성 + n8n 웹훅 연동
+
+**전제:** `.env`에 `N8N_FOOD_WEBHOOK_URL` 이미 등록됨
+
+#### 1단계 — 온보딩 시 음식 추천 스레드 추가 (`cogs/onboarding.py`)
+
+```python
+# 기존 스레드 생성 블록 이후에 추가
+food_thread = await personal_channel.create_thread(
+    name=f"🍱 {name}의 음식 추천",
+    type=discord.ChannelType.public_thread,
+)
+set_food_rec_thread_id(user_id, str(food_thread.id))
+```
+
+**DB:** `users` 테이블에 컬럼 추가
+```sql
+ALTER TABLE users ADD COLUMN IF NOT EXISTS food_rec_thread_id TEXT;
+```
+
+#### 2단계 — n8n 웹훅 호출 함수 (`utils/n8n.py`)
+
+```python
+import os, aiohttp
+
+N8N_FOOD_URL = os.getenv("N8N_FOOD_WEBHOOK_URL")
+
+async def request_food_recommendation(user_id: str, address: str, cal_remaining: int, mood: str = "") -> dict:
+    """n8n 음식 추천 웹훅 호출 → 결과 dict 반환"""
+    payload = {
+        "user_id": user_id,
+        "address": address,
+        "cal_remaining": cal_remaining,
+        "mood": mood,
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.post(N8N_FOOD_URL, json=payload, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+            return await resp.json()
+```
+
+#### 3단계 — 음식 추천 버튼/트리거
+
+**트리거 방식 (택1, 결정 필요):**
+- A. 식사 기록 후 "🍽️ 오늘 저녁 뭐 먹을까?" 버튼 자동 표시 (잔여 칼로리 기반)
+- B. 먹구름봇 메인 채널에서 "음식 추천" 키워드 감지 → 버튼 표시
+- C. `/음식추천` 슬래시 커맨드
+
+**응답 흐름:**
+```
+유저 트리거
+  → bot.py or cogs/meal.py: request_food_recommendation() 호출
+  → n8n: 주소 기반 주변 식당 검색 / GPT 음식 제안 / 잔여 칼로리 고려
+  → n8n → HTTP Response (동기) 또는 Discord 웹훅 직접 전송
+  → food_rec_thread_id 스레드에 추천 Embed 전송
+```
+
+**n8n → Discord 직접 전송 방식 (비동기 추천):**
+n8n 워크플로우 안에서 Discord 웹훅 또는 봇 API로 직접 스레드에 메시지를 보내면
+봇이 응답을 기다릴 필요 없음 → 타임아웃 위험 없음.
+
+```python
+# n8n이 직접 전송하는 경우 봇 쪽 코드는 단순히 요청만 보냄
+await request_food_recommendation(user_id, address, cal_remaining)
+# "음식 추천 중... 🍱 스레드를 확인해줘!" ephemeral 안내
+```
+
+#### 4단계 — `bot_meal.py` / `bot.py` on_thread_create 추가
+
+```python
+@bot.event
+async def on_thread_create(thread: discord.Thread):
+    if "음식" in thread.name or "추천" in thread.name:
+        try:
+            await thread.join()
+        except Exception:
+            pass
 ```
 
 ---
@@ -220,16 +278,17 @@ def _suggest_cal_adjustment(current_weight, goal_weight, history, current_target
 ## 작업 순서 권장
 
 ```
-[즉시 — 테스트]
-  0. 봇 재시작 후 시작하기 클릭 → 비공개 채널 + 스레드 생성 확인 ⚠️
+[즉시]
+  1. MAIL-1   bot_mail.py on_thread_create 추가
+  2. BUG-3    gpt_ml_bridge 연동 활성화   utils/gpt_ml_bridge.py + cogs/scheduler.py
 
 [다음]
-  1. BUG-3  gpt_ml_bridge 연동 활성화   utils/gpt_ml_bridge.py + cogs/scheduler.py
-  2. WEIGHT-2  체중 스레드 공개 Embed   cogs/weight.py
-  3. WEIGHT-3  체중 추이 그래프         cogs/weight.py
+  3. WEIGHT-2  체중 스레드 공개 Embed     cogs/weight.py
+  4. WEIGHT-3  체중 추이 그래프           cogs/weight.py
+  5. N8N-1     음식 추천 스레드 + n8n 연동 (트리거 방식 결정 후)
 
 [이후]
-  4. WEIGHT-4  칼로리 자동 조정
-  5. BOT-1     일기봇
-  6. BOT-2     일정봇
+  6. WEIGHT-4  칼로리 자동 조정
+  7. BOT-1     일기봇 cog
+  8. BOT-2     일정봇 cog
 ```

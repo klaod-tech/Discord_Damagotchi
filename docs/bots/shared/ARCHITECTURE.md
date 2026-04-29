@@ -6,13 +6,13 @@
 
 | 봇 | 파일 | prefix | 토큰 | Cog | 상태 |
 |----|------|--------|------|-----|------|
-| **먹구름봇** | `bot.py` | `!` | `DISCORD_TOKEN` | onboarding, summary, settings, time_settings, scheduler, weight | ✅ 운영 |
-| **메일봇** | `bot_mail.py` | `!mail_` | `DISCORD_TOKEN_EMAIL` | email_monitor | ✅ 운영 |
+| **먹구름봇** | `bot.py` | `!` | `DISCORD_TOKEN` | onboarding, summary, settings, time_settings, scheduler | ✅ 운영 |
+| **메일봇** | `bot_mail.py` | `!mail_` | `DISCORD_TOKEN_MAIL` | email_monitor | ✅ 운영 |
 | **식사봇** | `bot_meal.py` | `!meal_` | `DISCORD_TOKEN_MEAL` | meal | ✅ 운영 |
 | **날씨봇** | `bot_weather.py` | `!weather_` | `DISCORD_TOKEN_WEATHER` | weather | ✅ 운영 |
-| **체중관리봇** | `bot_weight.py` | `!weight_` | `DISCORD_TOKEN_WEIGHT` | (weight 이전 예정) | 🔄 skeleton |
-| **일기봇** | `bot_diary.py` | `!diary_` | `DISCORD_TOKEN_DIARY` | diary (신규) | 📋 예정 |
-| **일정봇** | `bot_schedule.py` | `!schedule_` | `DISCORD_TOKEN_SCHEDULE` | schedule (신규) | 📋 예정 |
+| **체중관리봇** | `bot_weight.py` | `!weight_` | `DISCORD_TOKEN_WEIGHT` | weight | ✅ 운영 |
+| **일기봇** | `bot_diary.py` | `!diary_` | `DISCORD_TOKEN_DIARY` | diary (미구현) | 🔄 스레드 참여만 완료 |
+| **일정봇** | `bot_schedule.py` | `!schedule_` | `DISCORD_TOKEN_SCHEDULE` | schedule (미구현) | 🔄 스레드 참여만 완료 |
 
 > **모든 봇은 동일한 Supabase DB 공유** — HTTP IPC 없이 DB를 단일 진실 공급원으로 사용
 
@@ -27,12 +27,13 @@ DISCORD_TOKEN_EMAIL        # 메일봇
 DISCORD_TOKEN_MEAL         # 식사봇
 DISCORD_TOKEN_WEATHER      # 날씨봇
 DISCORD_TOKEN_WEIGHT       # 체중관리봇
-DISCORD_TOKEN_DIARY        # 일기봇 (예정)
-DISCORD_TOKEN_SCHEDULE     # 일정봇 (예정)
+DISCORD_TOKEN_DIARY        # 일기봇
+DISCORD_TOKEN_SCHEDULE     # 일정봇
 
 # ── 채널 / 서버 ───────────────────────────────
 TAMAGOTCHI_CHANNEL_ID      # 온보딩 진입점 채널 ID (v3.2: 다마고치 채널)
 TAMAGOTCHI_CATEGORY_ID     # 유저 전용 채널 생성 카테고리 ID (v4.0~)
+BOT_ROLE_ID                # 봇 전용 역할 ID — 채널 overwrite에서 모든 봇에 일괄 권한 부여
 
 # ── API 키 (모든 봇 공유) ─────────────────────
 OPENAI_API_KEY             # GPT-4o (자연어 파싱, Vision, 대사 생성)
@@ -121,6 +122,8 @@ if __name__ == "__main__":
 | `🍽️ {이름}의 식사 기록` | `meal_thread_id` | 식사봇 |
 | `🌤️ {이름}의 날씨` | `weather_thread_id` | 날씨봇 |
 | `⚖️ {이름}의 체중관리` | `weight_thread_id` | 체중관리봇 |
+| `📔 {이름}의 일기장` | `diary_thread_id` | 일기봇 |
+| `📅 {이름}의 일정표` | `schedule_thread_id` | 일정봇 |
 
 ### Fallback 패턴 (기존 유저 호환 — 반드시 사용)
 
