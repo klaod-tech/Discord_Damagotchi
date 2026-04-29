@@ -23,7 +23,14 @@ from utils.db import (
     update_tamagotchi, get_calories_by_date,
     get_meals_by_date, is_all_meals_done_on_date,
     is_meal_waiting, clear_meal_waiting,
+    set_meal_clarification, get_meal_clarification, clear_meal_clarification,
 )
+
+MEAL_CATEGORIES = {
+    "한식", "양식", "일식", "중식", "분식",
+    "패스트푸드", "배달음식", "배달", "음식", "식사",
+    "밥", "간식", "야식",
+}
 from utils.gpt import generate_comment, parse_meal_input, analyze_meal_text
 from utils.gpt_ml_bridge import get_corrected_calories
 from utils.nutrition import search_food_nutrition
@@ -389,6 +396,17 @@ async def _process_text_meal(message: discord.Message, user_id: str, user: dict)
     any_today         = False
 
     parsed_meals = await parse_meal_input(raw_text)
+
+    # 카테고리 감지 → 재질문 (1회만)
+    for parsed in parsed_meals:
+        food_name = parsed.get("food_name", "")
+        if food_name in MEAL_CATEGORIES:
+            set_meal_clarification(user_id, raw_text)
+            await thinking_msg.edit(
+                content=f"'{food_name}'이라고 하셨는데, 어떤 음식을 드셨어요? 😊"
+            )
+            return
+
     for parsed in parsed_meals:
         days_ago  = parsed.get("days_ago", 0)
         meal_type = parsed.get("meal_type", "식사")
@@ -577,6 +595,19 @@ class MealPhotoCog(commands.Cog):
                     await thinking_msg.edit(content=f"❌ 음식 인식에 실패했어: {e}\n텍스트로 직접 입력해줘!")
                 return
 
+            # 대기 만료 후 사진 업로드 시 안내
+            waiting_until = user.get("meal_waiting_until")
+            if waiting_until:
+                from datetime import timezone
+                now = datetime.now(timezone.utc)
+                exp = waiting_until if waiting_until.tzinfo else waiting_until.replace(tzinfo=timezone.utc)
+                if now > exp:
+                    await message.channel.send(
+                        f"<@{message.author.id}> 사진 입력 시간이 초과됐어요. 다시 📸 버튼을 눌러주세요!",
+                        delete_after=10,
+                    )
+                    return
+
             detect_view = MealPhotoDetectView(user_id=user_id, image_url=image_url)
             detect_msg = await message.channel.send("📸 음식 사진이에요?", view=detect_view)
             detect_view.message = detect_msg
@@ -584,6 +615,9 @@ class MealPhotoCog(commands.Cog):
 
         # 텍스트 입력 → 식사 파싱 처리
         if message.content.strip() and not message.content.strip().startswith(('/', '!')):
+            clarification = get_meal_clarification(user_id)
+            if clarification:
+                clear_meal_clarification(user_id)
             await _process_text_meal(message, user_id, user)
 
 

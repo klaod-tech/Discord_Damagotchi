@@ -3,7 +3,7 @@ bot_mail.py — 메일 전용 봇 진입점
 
 역할: 네이버 메일 1분 폴링 → Discord 스레드 알림
 DB : 먹구름과 동일한 Supabase 공유
-토큰: .env의 MAIL_BOT_TOKEN 사용
+토큰: .env의 DISCORD_TOKEN_MAIL 사용
 
 실행:
     python bot_mail.py
@@ -14,7 +14,6 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 from utils.db import init_db
-from utils.thread_helper import join_assigned_threads, join_if_mine
 
 load_dotenv()
 
@@ -30,11 +29,6 @@ _bot_ready = False
 
 
 @bot.event
-async def on_thread_create(thread: discord.Thread):
-    await join_if_mine(bot, thread, "mail_thread_id")
-
-
-@bot.event
 async def on_ready():
     global _bot_ready
     if _bot_ready:
@@ -44,7 +38,6 @@ async def on_ready():
 
     init_db()
     await bot.tree.sync()
-    await join_assigned_threads(bot, "mail_thread_id")
     print(f"[메일봇] {bot.user} 로그인 완료 — 1분 폴링 시작")
 
 

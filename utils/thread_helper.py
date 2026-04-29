@@ -25,9 +25,17 @@ async def join_assigned_threads(bot: discord.ext.commands.Bot, thread_field: str
 
 
 async def join_if_mine(bot: discord.ext.commands.Bot, thread: discord.Thread, thread_field: str):
-    """신규 생성된 쓰레드가 담당 쓰레드이면 join."""
+    """신규 생성된 쓰레드가 담당 쓰레드이면 join. DB 저장 완료를 기다려 3초 후 조회."""
+    import asyncio
+    print(f"[join_if_mine] 호출됨 — thread={thread.id} ({thread.name}), field={thread_field}")
+    await asyncio.sleep(3)
     from utils.db import get_all_users
     for user_data in get_all_users():
         if str(user_data.get(thread_field, "")) == str(thread.id):
-            await thread.join()
+            try:
+                await thread.join()
+                print(f"[join_if_mine] 성공 — {thread.id}")
+            except Exception as e:
+                print(f"[join_if_mine] 실패 — {e}")
             return
+    print(f"[join_if_mine] 매칭 없음 — {thread.id}")

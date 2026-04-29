@@ -14,7 +14,6 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 from utils.db import init_db
-from utils.thread_helper import join_assigned_threads, join_if_mine
 
 load_dotenv()
 
@@ -30,11 +29,6 @@ _bot_ready = False
 
 
 @bot.event
-async def on_thread_create(thread: discord.Thread):
-    await join_if_mine(bot, thread, "weight_thread_id")
-
-
-@bot.event
 async def on_ready():
     global _bot_ready
     if _bot_ready:
@@ -44,7 +38,6 @@ async def on_ready():
 
     init_db()
     await bot.tree.sync()
-    await join_assigned_threads(bot, "weight_thread_id")
     print(f"[체중관리봇] {bot.user} 로그인 완료")
 
 

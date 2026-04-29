@@ -24,7 +24,7 @@ COGS = [
     "cogs.settings",
     "cogs.time_settings",
     "cogs.scheduler",
-    "cogs.weight",
+    # cogs.weight  → bot_weight.py (체중관리 전용 봇)으로 분리
     # cogs.weather → bot_weather.py (날씨 전용 봇)으로 분리
     # cogs.meal   → bot_meal.py   (식사 전용 봇)으로 분리
     # cogs.email_monitor → bot_mail.py (메일 전용 봇)으로 분리

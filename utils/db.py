@@ -51,6 +51,8 @@ def init_db():
             f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {col_type} DEFAULT {default}"
         )
 
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS meal_clarification TEXT")
+
     cur.execute("""
         CREATE TABLE IF NOT EXISTS tamagotchi (
             user_id          TEXT PRIMARY KEY REFERENCES users(user_id),
@@ -119,6 +121,7 @@ def init_db():
         ("weather_thread_id",  "TEXT"),
         ("weight_thread_id",   "TEXT"),
         ("meal_waiting_until", "TIMESTAMP"),  # 사진 입력 대기 만료 시각
+        ("user_channel_id",    "TEXT"),       # 유저 전용 비공개 채널 ID (v3.3)
     ]:
         cur.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {col_type}")
 
@@ -550,6 +553,36 @@ def save_email_log(user_id: str, sender_email: str, subject: str, summary_gpt: s
 
 # ===== 멀티봇 쓰레드 ID Setters =====
 
+def reset_user_threads(user_id: str):
+    """유저의 모든 전용 채널/스레드 ID 초기화 (리셋 시 사용)"""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        UPDATE users SET
+            user_channel_id   = NULL,
+            thread_id         = NULL,
+            mail_thread_id    = NULL,
+            meal_thread_id    = NULL,
+            weather_thread_id = NULL,
+            weight_thread_id  = NULL
+        WHERE user_id = %s
+    """, (user_id,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def set_user_channel_id(user_id: str, channel_id: str):
+    """유저 전용 비공개 채널 ID 저장"""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET user_channel_id = %s WHERE user_id = %s",
+        (channel_id, user_id),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
 def set_meal_thread_id(user_id: str, thread_id: str):
     """식사 전용 쓰레드 ID 저장"""
     conn = get_conn()
@@ -581,6 +614,40 @@ def set_weight_thread_id(user_id: str, thread_id: str):
     cur.execute(
         "UPDATE users SET weight_thread_id = %s WHERE user_id = %s",
         (thread_id, user_id),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def set_meal_clarification(user_id: str, text: str):
+    """카테고리 재질문 대기 상태 저장"""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET meal_clarification = %s WHERE user_id = %s",
+        (text, user_id),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def get_meal_clarification(user_id: str) -> str | None:
+    """카테고리 재질문 대기 중인 원본 텍스트 반환"""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT meal_clarification FROM users WHERE user_id = %s", (user_id,))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    return row["meal_clarification"] if row else None
+
+def clear_meal_clarification(user_id: str):
+    """카테고리 재질문 대기 상태 해제"""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET meal_clarification = NULL WHERE user_id = %s",
+        (user_id,),
     )
     conn.commit()
     cur.close()

@@ -1,5 +1,5 @@
 """
-cogs/onboarding.py — 온보딩 + 전용 쓰레드 생성
+cogs/onboarding.py — 온보딩 + 유저 전용 채널 생성
 """
 import os
 import discord
@@ -15,11 +15,26 @@ from utils.db import (
     set_meal_thread_id,
     set_weather_thread_id,
     set_weight_thread_id,
+    set_user_channel_id,
+    reset_user_threads,
+    update_tamagotchi,
 )
 from utils.gpt import calculate_daily_calories, generate_comment
 from utils.embed import create_or_update_embed
 
 TAMAGOTCHI_CHANNEL_ID = int(os.getenv("TAMAGOTCHI_CHANNEL_ID", "0"))
+
+# 모든 봇의 Client ID (채널 권한 부여용)
+BOT_CLIENT_IDS = [
+    int(os.getenv("DISCORD_CLIENT_ID_MAIN",     "1486922369430847658")),
+    int(os.getenv("DISCORD_CLIENT_ID_MAIL",     "1492889369273565194")),
+    int(os.getenv("DISCORD_CLIENT_ID_MEAL",     "1493053617735860294")),
+    int(os.getenv("DISCORD_CLIENT_ID_WEATHER",  "1493055419394822144")),
+    int(os.getenv("DISCORD_CLIENT_ID_WEIGHT",   "1493056034405748796")),
+    int(os.getenv("DISCORD_CLIENT_ID_DIARY",    "1493056401457676419")),
+    int(os.getenv("DISCORD_CLIENT_ID_SCHEDULE", "1493056708228939957")),
+]
+
 
 # ══════════════════════════════════════════════════════
 # Modal: 온보딩 (1단계 통합)
@@ -120,70 +135,92 @@ class OnboardingModal(discord.ui.Modal, title="먹구름 시작하기"):
             if scheduler_cog:
                 scheduler_cog.register_meal_jobs(user_id)
 
-            # 전용 쓰레드 생성
-            channel = interaction.guild.get_channel(TAMAGOTCHI_CHANNEL_ID)
-            if channel is None:
-                channel = interaction.channel
+            # ── 유저 전용 비공개 채널 생성 ──────────────────────────
+            guild = interaction.guild
+            base_ch = guild.get_channel(TAMAGOTCHI_CHANNEL_ID)
+            category = base_ch.category if base_ch else None
 
-            thread = await channel.create_thread(
+            overwrites = {
+                guild.default_role: discord.PermissionOverwrite(view_channel=False),
+                interaction.user: discord.PermissionOverwrite(
+                    view_channel=True, send_messages=True, read_message_history=True
+                ),
+                guild.me: discord.PermissionOverwrite(
+                    view_channel=True, send_messages=True,
+                    manage_channels=True, manage_threads=True, manage_messages=True
+                ),
+            }
+            for bot_id in BOT_CLIENT_IDS:
+                member = guild.get_member(bot_id)
+                if member and member != guild.me:
+                    overwrites[member] = discord.PermissionOverwrite(
+                        view_channel=True, send_messages=True, read_message_history=True
+                    )
+
+            user_channel = await guild.create_text_channel(
+                name=f"{interaction.user.display_name}의 먹구름",
+                overwrites=overwrites,
+                category=category,
+            )
+            set_user_channel_id(user_id, str(user_channel.id))
+            # ────────────────────────────────────────────────────────
+
+            # 채널 내 공개 스레드 생성
+            thread = await user_channel.create_thread(
                 name=f"{interaction.user.display_name}의 {self.tama_name.value.strip()}",
                 auto_archive_duration=10080,
-                invitable=False,
+                type=discord.ChannelType.public_thread,
             )
             set_thread_id(user_id, str(thread.id))
 
-            # 메일 전용 쓰레드 생성
-            mail_thread = await channel.create_thread(
+            mail_thread = await user_channel.create_thread(
                 name=f"📧 {interaction.user.display_name}의 메일함",
                 auto_archive_duration=10080,
-                invitable=False,
+                type=discord.ChannelType.public_thread,
             )
             set_mail_thread_id(user_id, str(mail_thread.id))
             await mail_thread.send(
                 f"📬 안녕, {interaction.user.mention}!\n"
-                f"여기는 **메일 알림 전용** 쓰레드야.\n"
+                f"여기는 **메일 알림 전용** 스레드야.\n"
                 f"등록된 발신자에게 메일이 오면 여기에 요약해서 알려줄게!\n\n"
                 f"**시작 방법:**\n"
                 f"1. `/이메일설정` — 네이버 계정 연동\n"
                 f"2. `/발신자추가` — 알림 받을 발신자 등록"
             )
 
-            # 식사 전용 쓰레드 생성
-            meal_thread = await channel.create_thread(
+            meal_thread = await user_channel.create_thread(
                 name=f"🍽️ {interaction.user.display_name}의 식사 기록",
                 auto_archive_duration=10080,
-                invitable=False,
+                type=discord.ChannelType.public_thread,
             )
             set_meal_thread_id(user_id, str(meal_thread.id))
             await meal_thread.send(
                 f"🍽️ 안녕, {interaction.user.mention}!\n"
-                f"여기는 **식사 기록 전용** 쓰레드야.\n"
+                f"여기는 **식사 기록 전용** 스레드야.\n"
                 f"사진을 올리거나 먹은 음식을 말해주면 칼로리를 분석해줄게!"
             )
 
-            # 날씨 전용 쓰레드 생성
-            weather_thread = await channel.create_thread(
+            weather_thread = await user_channel.create_thread(
                 name=f"🌤️ {interaction.user.display_name}의 날씨",
                 auto_archive_duration=10080,
-                invitable=False,
+                type=discord.ChannelType.public_thread,
             )
             set_weather_thread_id(user_id, str(weather_thread.id))
             await weather_thread.send(
                 f"🌤️ 안녕, {interaction.user.mention}!\n"
-                f"여기는 **날씨 알림 전용** 쓰레드야.\n"
+                f"여기는 **날씨 알림 전용** 스레드야.\n"
                 f"매일 기상 시간({wake_time})에 날씨와 미세먼지 정보를 알려줄게!"
             )
 
-            # 체중관리 전용 쓰레드 생성
-            weight_thread = await channel.create_thread(
+            weight_thread = await user_channel.create_thread(
                 name=f"⚖️ {interaction.user.display_name}의 체중관리",
                 auto_archive_duration=10080,
-                invitable=False,
+                type=discord.ChannelType.public_thread,
             )
             set_weight_thread_id(user_id, str(weight_thread.id))
             await weight_thread.send(
                 f"⚖️ 안녕, {interaction.user.mention}!\n"
-                f"여기는 **체중관리 전용** 쓰레드야.\n"
+                f"여기는 **체중관리 전용** 스레드야.\n"
                 f"체중을 기록하면 목표 달성률과 추이를 여기에 보여줄게!\n"
                 f"목표 체중: **{goal_weight}kg**"
             )
@@ -208,14 +245,16 @@ class OnboardingModal(discord.ui.Modal, title="먹구름 시작하기"):
             await create_or_update_embed(thread, user, tama, comment)
 
             await interaction.followup.send(
-                f"✅ 설정 완료! {thread.mention} 에서 확인해봐!\n"
+                f"✅ 설정 완료! {user_channel.mention} 에서 확인해봐!\n"
                 f"이제 기상 시간과 식사 알림 시간을 설정해줘 ⏰",
                 ephemeral=True,
             )
 
             from cogs.time_settings import TimeStep1View
             await interaction.followup.send(
-                "⬇️ 아래에서 시간을 설정해줘!",
+                "⏰ **시간 설정** — 1단계\n\n"
+                "🌅 **기상 시간** — 시 / 분\n"
+                "🍳 **아침 알림** — 시 / 분",
                 view=TimeStep1View(user_id=user_id, from_onboarding=True),
                 ephemeral=True,
             )
@@ -227,6 +266,61 @@ class OnboardingModal(discord.ui.Modal, title="먹구름 시작하기"):
             await interaction.followup.send(
                 f"❌ 오류가 발생했어: {e}", ephemeral=True
             )
+
+
+# ══════════════════════════════════════════════════════
+# 리셋 확인 View
+# ══════════════════════════════════════════════════════
+class ResetConfirmView(discord.ui.View):
+    def __init__(self, user_id: str):
+        super().__init__(timeout=60)
+        self.user_id = user_id
+
+    @discord.ui.button(label="✅ 확인", style=discord.ButtonStyle.danger)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if str(interaction.user.id) != self.user_id:
+            await interaction.response.send_message("❌ 본인만 리셋할 수 있어!", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
+        user = get_user(self.user_id)
+        if not user:
+            await interaction.edit_original_response(
+                content="❌ 등록된 유저 정보가 없어!",
+            )
+            return
+
+        # 유저 전용 채널 삭제 (내부 스레드 전부 자동 삭제)
+        channel_id = user.get("user_channel_id")
+        if channel_id:
+            try:
+                ch = interaction.guild.get_channel(int(channel_id))
+                if ch is None:
+                    ch = await interaction.guild.fetch_channel(int(channel_id))
+                if ch:
+                    await ch.delete()
+            except Exception:
+                pass
+
+        # DB 초기화
+        reset_user_threads(self.user_id)
+        update_tamagotchi(self.user_id, {"embed_message_id": None})
+
+        await interaction.edit_original_response(
+            content="✅ 리셋 완료!\n채널이 삭제됐어. 시작하기 버튼을 눌러 다시 시작해줘 🥚",
+            view=None,
+        )
+
+    @discord.ui.button(label="❌ 취소", style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if str(interaction.user.id) != self.user_id:
+            await interaction.response.send_message("❌", ephemeral=True)
+            return
+        for child in self.children:
+            child.disabled = True
+        await interaction.message.edit(view=self)
+        await interaction.response.send_message("취소했어!", ephemeral=True)
 
 
 # ══════════════════════════════════════════════════════
@@ -249,17 +343,15 @@ class StartView(discord.ui.View):
         user_id  = str(interaction.user.id)
         print(f"[BTN] 시작하기 — {interaction.user}")
         existing = get_user(user_id)
-        if existing and existing.get("thread_id"):
-            guild  = interaction.guild
-            thread = guild.get_thread(int(existing["thread_id"]))
-            if thread:
-                # 쓰레드가 살아있으면 기존 쓰레드 안내
+        if existing and existing.get("user_channel_id"):
+            guild = interaction.guild
+            ch = guild.get_channel(int(existing["user_channel_id"]))
+            if ch:
                 await interaction.response.send_message(
-                    f"이미 등록되어 있어! {thread.mention} 에서 확인해봐 😊",
+                    f"이미 등록되어 있어! {ch.mention} 에서 확인해봐 😊",
                     ephemeral=True,
                 )
                 return
-        # 쓰레드가 없거나 삭제된 경우 → 모달 바로 열기 (데이터는 UPSERT로 덮어씀)
         await interaction.response.send_modal(OnboardingModal())
 
 
@@ -269,6 +361,21 @@ class StartView(discord.ui.View):
 class OnboardingCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+
+    @app_commands.command(name="리셋", description="내 채널을 전부 삭제하고 처음부터 다시 시작해요.")
+    async def reset_cmd(self, interaction: discord.Interaction):
+        user_id = str(interaction.user.id)
+        user = get_user(user_id)
+        if not user:
+            await interaction.response.send_message(
+                "❌ 등록된 유저가 없어! 먼저 시작하기 버튼을 눌러줘.", ephemeral=True
+            )
+            return
+        await interaction.response.send_message(
+            "⚠️ 정말 리셋할까요?\n**전용 채널이 삭제**되고 처음부터 다시 시작해야 해.\n(식사 기록, 체중 기록 등 DB 데이터는 유지돼요)",
+            view=ResetConfirmView(user_id=user_id),
+            ephemeral=True,
+        )
 
     @app_commands.command(name="start", description="다마고치 봇 시작 메시지를 채널에 고정합니다.")
     @app_commands.checks.has_permissions(manage_messages=True)
