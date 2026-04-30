@@ -40,7 +40,6 @@ export default function Onboarding() {
         user_id: user.id,
         tamagotchi_name: form.tamagotchi_name,
         city: form.city,
-        address: form.address,
         gender: form.gender,
         age: Number(form.age),
         height: Number(form.height),

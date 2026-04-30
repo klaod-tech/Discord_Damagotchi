@@ -13,7 +13,6 @@ export async function createUserProfile(profile: {
   user_id: string
   tamagotchi_name: string
   city: string
-  address: string
   gender: string
   age: number
   height: number
