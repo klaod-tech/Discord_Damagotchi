@@ -52,7 +52,7 @@ export function useUser() {
 
         if (authUser) {
           // 3초 타임아웃 적용
-          const p = await withTimeout(getUserProfile(authUser.id), 3000).catch(() => null)
+          const p = await withTimeout(getUserProfile(authUser.id), 10000).catch(() => null)
           if (!mounted) return
           setProfile(p)
         } else {
