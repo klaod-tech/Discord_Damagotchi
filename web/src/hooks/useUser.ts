@@ -22,25 +22,35 @@ export interface UserProfile {
   badges?: string
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
-  return Promise.race([
-    promise,
-    new Promise<null>(resolve => setTimeout(() => resolve(null), ms)),
-  ])
+const PROFILE_CACHE_KEY = 'mukgoorm_profile'
+
+function getCachedProfile(): UserProfile | null {
+  try {
+    const raw = sessionStorage.getItem(PROFILE_CACHE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+function setCachedProfile(profile: UserProfile | null) {
+  try {
+    if (profile) sessionStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(profile))
+    else sessionStorage.removeItem(PROFILE_CACHE_KEY)
+  } catch {}
 }
 
 export function useUser() {
   const [user, setUser] = useState<User | null>(null)
-  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [profile, setProfile] = useState<UserProfile | null>(getCachedProfile)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let mounted = true
 
-    // 5초 안전망: 어떤 경우에도 로딩 해제
     const safetyTimer = setTimeout(() => {
       if (mounted) setLoading(false)
-    }, 5000)
+    }, 10000)
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
@@ -51,16 +61,30 @@ export function useUser() {
         setUser(authUser)
 
         if (authUser) {
-          // 3초 타임아웃 적용
-          const p = await withTimeout(getUserProfile(authUser.id), 10000).catch(() => null)
-          if (!mounted) return
-          setProfile(p)
+          // 캐시 없을 때만 DB 조회
+          const cached = getCachedProfile()
+          if (cached && cached.user_id === authUser.id) {
+            setProfile(cached)
+            clearTimeout(safetyTimer)
+            if (mounted) setLoading(false)
+            // 백그라운드에서 최신 데이터 갱신
+            getUserProfile(authUser.id)
+              .then(p => { if (p && mounted) { setProfile(p); setCachedProfile(p) } })
+              .catch(() => {})
+          } else {
+            const p = await getUserProfile(authUser.id).catch(() => null)
+            if (!mounted) return
+            setProfile(p)
+            setCachedProfile(p)
+            clearTimeout(safetyTimer)
+            if (mounted) setLoading(false)
+          }
         } else {
           setProfile(null)
+          setCachedProfile(null)
+          clearTimeout(safetyTimer)
+          if (mounted) setLoading(false)
         }
-
-        clearTimeout(safetyTimer)
-        if (mounted) setLoading(false)
       }
     )
 
