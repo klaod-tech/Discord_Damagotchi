@@ -21,15 +21,16 @@ export default function App() {
         <Route path="/onboarding" element={<Onboarding />} />
         <Route element={<ProtectedRoute />}>
           <Route element={<Layout />}>
-          <Route path="/" element={<Home />} />
-          <Route path="/meal" element={<Meal />} />
-          <Route path="/weight" element={<Weight />} />
-          <Route path="/weather" element={<Weather />} />
-          <Route path="/schedule" element={<Schedule />} />
-          <Route path="/diary" element={<Diary />} />
-          <Route path="/email" element={<Email />} />
-          <Route path="/report" element={<Report />} />
-          <Route path="/settings" element={<Settings />} />
+            <Route path="/" element={<Home />} />
+            <Route path="/meal" element={<Meal />} />
+            <Route path="/weight" element={<Weight />} />
+            <Route path="/weather" element={<Weather />} />
+            <Route path="/schedule" element={<Schedule />} />
+            <Route path="/diary" element={<Diary />} />
+            <Route path="/email" element={<Email />} />
+            <Route path="/report" element={<Report />} />
+            <Route path="/settings" element={<Settings />} />
+          </Route>
         </Route>
       </Routes>
     </BrowserRouter>
