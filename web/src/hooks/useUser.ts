@@ -30,9 +30,10 @@ export function useUser() {
   useEffect(() => {
     let mounted = true
 
-    async function init() {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
+    // getSession() 대신 onAuthStateChange만 사용
+    // INITIAL_SESSION 이벤트가 페이지 로드 시 저장된 세션을 즉시 전달함
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
         if (!mounted) return
 
         const authUser = session?.user ?? null
@@ -42,29 +43,13 @@ export function useUser() {
           const p = await getUserProfile(authUser.id).catch(() => null)
           if (!mounted) return
           setProfile(p)
+        } else {
+          setProfile(null)
         }
-      } catch {
-        // 세션 조회 실패해도 loading은 해제
-      } finally {
+
         if (mounted) setLoading(false)
       }
-    }
-
-    init()
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return
-      const authUser = session?.user ?? null
-      setUser(authUser)
-
-      if (authUser) {
-        const p = await getUserProfile(authUser.id).catch(() => null)
-        if (!mounted) return
-        setProfile(p)
-      } else {
-        setProfile(null)
-      }
-    })
+    )
 
     return () => {
       mounted = false
