@@ -22,7 +22,7 @@ export async function createUserProfile(profile: {
   lunch_time: string
   dinner_time: string
 }) {
-  const { error } = await supabase.from('users').insert(profile)
+  const { error } = await supabase.from('users').upsert(profile, { onConflict: 'user_id' })
   if (error) throw new Error(error.message + ' | code: ' + error.code)
 }
 
