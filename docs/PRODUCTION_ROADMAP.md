@@ -1,190 +1,148 @@
 # 먹구름 전체 제작 로드맵
 
-> last_updated: 2026-04-13 | 현재 버전: v3.2
+> last_updated: 2026-04-30 | 전환 방향: Python Discord 봇 → React 웹앱
 
 ---
 
-## 봇별 현재 상태 한눈에 보기
+## 현재 상태 한눈에 보기
 
-| 봇 | 파일 | 담당 기능 | 현재 상태 | 다음 단계 |
-|----|------|-----------|-----------|-----------|
-| **먹구름봇** | `bot.py` | 온보딩, 설정, 식사텍스트, 스케줄러 | ✅ 운영 중 (v3.2) | 채널 구조 전환 + 오케스트레이터 전환 (v4.0) |
-| **메일봇** | `bot_mail.py` | IMAP 폴링, 이메일 알림 | ✅ 운영 중 (v3.1) | 안정화 |
-| **식사봇** | `bot_meal.py` | 사진 식사 감지, 칼로리 분석 | ✅ 운영 중 (v3.2) | n8n 음식 추천 연동 (웹훅 URL 수령 후) |
-| **날씨봇** | `bot_weather.py` | 날씨/미세먼지 알림 | ✅ 운영 중 (v3.2) | 도시 확장 |
-| **체중관리봇** | `bot_weight.py` | 체중 기록, 칼로리 목표 | 🔄 skeleton | cogs.weight 이전 후 기능 점진적 확장 |
-| **일기봇** | `bot_diary.py` | 일기 작성, 감정 분석 | 📋 구상 단계 | UX 기획 구체화 → 구현 |
-| **일정봇** | `bot_schedule.py` | 일정 등록, 알림 | 📋 구상 단계 | UX 기획 구체화 → 구현 |
+| 항목 | 상태 |
+|------|------|
+| Python 봇 (v3.2) | `develop` 브랜치 보존, 신규 개발 중단 |
+| React 웹앱 | `feat/web-migration` 브랜치 — Phase 1 진행 중 |
+| Supabase DB | 기존 스키마 재활용 (마이그레이션 불필요) |
+| n8n | 워크플로우 구성됨, 웹훅 URL 수령 후 연결 |
 
 ---
 
-## 전체 제작 순서 (Phase별)
+## Phase 1 — React 기본 세팅 + 인증
+
+**목표:** 웹앱 개발 환경 구축, Supabase 연결, 온보딩
 
 ```
-Phase 1 ─ 호스팅 배포         (현재 → v3.2 안정화)
-Phase 2 ─ 버그/안정화          (v3.2 → v3.2.x)
-Phase 3 ─ 체중관리봇 분리       (v3.3 예정)
-Phase 4 ─ n8n 음식 추천        (v3.3 예정)
-Phase 5 ─ 일기봇               (v3.4 예정)
-Phase 6 ─ 일정봇               (v3.5 예정)
-Phase 7 ─ 오케스트레이터 전환   (v4.0)
+[ ] Vite + React + TypeScript 프로젝트 초기화
+[ ] Supabase client 연결
+[ ] 환경변수 구성 (.env.local)
+[ ] react-router-dom 라우팅 구조 (9개 페이지)
+[ ] 기본 레이아웃 (사이드바 + 메인 영역)
+[ ] Supabase Auth 이메일 로그인 / 회원가입
+[ ] 온보딩 플로우 (이름·도시·주소·신체정보·시간 등록)
+[ ] Supabase RLS 정책 (유저별 데이터 완전 격리)
 ```
 
 ---
 
-## Phase 1 — 호스팅 배포
+## Phase 2 — 핵심 기능 JavaScript 변환
 
-> 목표: 4개 봇 프로세스를 프로덕션 환경에서 동시 실행
+**목표:** 식사·체중·날씨·캐릭터 기능 웹앱 구현
 
-### 사전 체크리스트
-
-- [ ] 디스코드 Application 7개 생성 (봇마다 토큰 발급)
-  - 먹구름봇 / 메일봇 / 식사봇 / 날씨봇 / 체중관리봇 / 일기봇 / 일정봇
-- [ ] `.env` → 플랫폼 시크릿으로 이전
-- [ ] `develop` → `main` 머지
-
-### 배포 환경 선택 (Railway 권장)
-
-| 옵션 | 장점 | 단점 |
-|------|------|------|
-| **Railway** | 다중 서비스 지원, Python 자동 감지 | 월 $5~20 |
-| **Render** | 무료 플랜 있음 | 15분 슬립, 콜드 스타트 |
-| **VPS (Vultr/DigitalOcean)** | 완전 통제 | 직접 관리 필요 |
-
-Railway 기준 설정:
-```yaml
-# railway.toml 예시
-[services.mukgoorm]
-  startCommand = "python bot.py"
-[services.mail]
-  startCommand = "python bot_mail.py"
-[services.meal]
-  startCommand = "python bot_meal.py"
-[services.weather]
-  startCommand = "python bot_weather.py"
+```
+[ ] GPT-4o-mini 래퍼 (src/lib/openai.ts)
+[ ] Supabase CRUD 헬퍼 (src/lib/db.ts)
+[ ] 캐릭터 상태 컴포넌트
+    ─ hp/hunger/mood → 이미지 선택 로직 (11종)
+    ─ GPT 대사 생성
+    ─ 수치 직접 노출 금지 원칙 유지
+[ ] 식사 기록 (텍스트)
+    ─ 식약처 API 칼로리 조회
+    ─ GPT-4o-mini fallback
+    ─ meal_log 저장
+[ ] 식사 기록 (사진)
+    ─ GPT-4o-mini Vision 분석
+[ ] 체중 기록 + 추이 그래프 (recharts, 14일)
+[ ] 날씨 표시
+    ─ 기상청 API 연동
+    ─ 미세먼지 (에어코리아)
+    ─ 날씨 → 캐릭터 이미지 자동 반영
 ```
 
-### 배포 후 검증
+---
 
-- [ ] 신규 유저 온보딩 → 쓰레드 5개 생성 확인
-- [ ] 텍스트 식사 입력 → 칼로리 분석 확인
-- [ ] 사진 식사 입력 → 60초 감지 확인
-- [ ] 22:00 칼로리 판정 알림 확인
-- [ ] 이메일 1분 폴링 확인
-- [ ] 날씨 wake_time 알림 확인
+## Phase 3 — 확장 기능
+
+**목표:** 일정·일기·이메일 기능 웹앱 구현
+
+```
+[ ] 일정 관리
+    ─ 등록·목록·삭제 (schedules 테이블)
+    ─ 브라우저 Notification API 알림
+    ─ 반복 일정
+[ ] 일기 + 감정 분석
+    ─ 작성 (textarea)
+    ─ GPT-4o-mini 감정 분석
+    ─ 주간 감정 추이 차트
+[ ] 이메일 모니터링
+    ─ n8n IMAP 폴링 → Supabase 저장
+    ─ Supabase Realtime → 웹앱 실시간 반영
+    ─ 발신자 관리 (화이트리스트)
+```
 
 ---
 
-## Phase 2 — 버그 수정 / 안정화
+## Phase 4 — n8n 연동
 
-> 목표: P2 버그 해결, 안정적인 운영
+**목표:** ML 파이프라인 + 음식 추천 + 이메일 자동화
 
-### 작업 목록
-
-| 우선순위 | 항목 | 파일 | 작업 내용 |
-|---------|------|------|-----------|
-| P2 | `generate_comment_with_pattern()` 파라미터 불일치 | `utils/gpt_ml_bridge.py:73` | 함수 시그니처 수정 후 pattern 연동 활성화 |
-| P2 | 식약처 검색어 숫자+단위 500 오류 | `utils/nutrition.py` | 입력 전처리: 숫자·단위 제거 정규식 추가 |
-| P2 | 여러 끼니 동시 입력 시 첫 번째만 인식 | `utils/embed.py MealInputModal` | 쉼표 분리 → 다중 파싱 구현 |
-| P2 | meal_waiting_until 만료 전 재업로드 안내 미구현 | `cogs/meal.py` | 만료 감지 → "다시 📸 버튼 눌러주세요" 안내 |
-| 모니터링 | Supabase 커넥션 풀 한계 | `utils/db.py` | 4봇 동시 연결 수 모니터링, 필요 시 pooling 파라미터 조정 |
-
----
-
-## Phase 3 — 체중관리봇 분리 (v3.3)
-
-> 목표: bot_weight.py 완전 활성화, 체중 전용 쓰레드로 분리
-
-상세: [`docs/bots/weight/ROADMAP.md`](bots/weight/ROADMAP.md)
+```
+[ ] 음식 추천 웹훅 연결 (VITE_N8N_FOOD_WEBHOOK_URL)
+[ ] 음식 추천 UI (잔여 칼로리 기반)
+[ ] ML 의도 분류 파이프라인
+    ─ GPT 라벨링 → intent_log 축적
+    ─ 50건+ 누적 → ML 모델 학습 (n8n 처리)
+    ─ ML 모델 → 빠른 라우팅, GPT는 엔티티 추출만
+[ ] 이메일 모니터링 n8n 워크플로우 확인
+```
 
 ---
 
-## Phase 4 — n8n 음식 추천 연동 (v3.3)
+## Phase 5 — 알림 · 주간 리포트
 
-> 목표: `🍜 뭐 먹고 싶어?` 버튼 → n8n 웹훅 → 음식 추천 Embed
+**목표:** 리포트 페이지 + Discord Webhook + 이메일 발송
 
-상세: [`docs/bots/mukgoorm/ROADMAP.md`](bots/mukgoorm/ROADMAP.md) Phase 3 참고
-
-### 전제 조건
-
-- [ ] n8n 팀원이 웹훅 URL 확정
-- [ ] 응답 JSON 포맷 합의
-- [ ] `address` 필드 추가 여부 결정 (구/동 단위 위치)
-
----
-
-## Phase 5 — 일기봇 (v3.4)
-
-> 목표: 감정 일기 작성, GPT 감정 분석, 주간 감정 리포트  
-> 상태: 📋 구상 단계 — UX 흐름 미결, 구현 전 기획 구체화 필요
-
-상세: [`docs/bots/diary/ROADMAP.md`](bots/diary/ROADMAP.md)
+```
+[ ] 주간 리포트 페이지 (/report)
+    ─ 주간 칼로리 차트
+    ─ 체중 변화
+    ─ 감정 추이
+    ─ 스트릭 + 배지 7종
+    ─ CSS 풀 커스텀 (Discord 임베드 한계 해소)
+[ ] Discord Webhook 발송 (src/lib/discord.ts)
+[ ] 이메일 발송 (n8n SMTP 워크플로우)
+[ ] 브라우저 Push 알림 (PWA Service Worker)
+```
 
 ---
 
-## Phase 6 — 일정봇 (v3.5)
+## Phase 6 — 마무리 (선택)
 
-> 목표: 일정 등록, 알림, 반복 패턴 관리  
-> 상태: 📋 구상 단계 — UX 흐름 미결, 구현 전 기획 구체화 필요
-
-상세: [`docs/bots/schedule/ROADMAP.md`](bots/schedule/ROADMAP.md)
+```
+[ ] PWA 설정
+    ─ manifest.json, service worker
+    ─ 모바일 홈 화면 추가 가능
+[ ] Electron 패키징 (선택)
+    ─ exe 데스크톱 앱
+    ─ 백그라운드 실행 + 시스템 트레이
+    ─ OS 네이티브 알림
+```
 
 ---
 
-## Phase 7 — 채널 구조 전환 + 오케스트레이터 (v4.0)
-
-> 목표:
-> 1. 유저별 전용 채널 + 기능봇 쓰레드 구조로 온보딩 전환
-> 2. bot.py가 GPT/ML 의도 파싱으로 전문봇 자동 트리거
-> 3. intent_log 데이터 축적 → ML 의도 분류기 점진적 전환
-
-상세: [`docs/bots/mukgoorm/ROADMAP.md`](bots/mukgoorm/ROADMAP.md) Phase 3.5~5 참고
-
-### 인프라 고려 사항 (20인 서버 기준)
+## 인프라 고려사항 (20인 기준)
 
 | 항목 | 내용 |
 |------|------|
-| Discord 채널 수 | 최대 20명 × (채널 1개 + 쓰레드 2개) ≈ 60개 (한도 500, 여유 있음) |
-| 환경변수 추가 | `TAMAGOTCHI_CATEGORY_ID` (카테고리 ID) |
-| DB 컬럼 추가 | `users.personal_channel_id`, `users.address` |
-| 신규 테이블 | `task_queue` (봇 간 통신 + result_json 반환), `intent_log` (ML 학습 데이터) |
-| Supabase 연결 | 7개 봇 동시 운영 → 커넥션 풀 한도 확인 필요 |
+| Supabase Auth | 20인 계정 — Free tier 충분 |
+| Supabase DB | RLS로 유저별 격리 — 쿼리 최적화 필요 |
+| GPT API 비용 | 20인 × 일평균 호출 수 기준 월 예산 산정 필요 |
+| n8n | 클라우드 n8n 또는 VPS 자체 호스팅 |
+| 이미지 생성 | NovelAI — 서버사이드 처리 필요 (Edge Function 또는 n8n) |
 
 ---
 
-## 봇 간 DB 공유 구조
+## 레거시 Python 봇 처리 계획
 
-```
-모든 봇 → utils/db.py → Supabase PostgreSQL (Session Pooler)
-
-소유 관계:
-  bot.py        → users, tamagotchi, meals(text), badges
-  bot_meal.py   → meals(photo)
-  bot_weather.py→ weather_log
-  bot_weight.py → weight_log
-  bot_mail.py   → email_senders, email_log
-  bot_diary.py  → diary_log         (신규)
-  bot_schedule.py → schedules       (신규)
-```
-
----
-
-## 환경변수 현황
-
-| 변수명 | 상태 | 사용 봇 |
-|--------|------|---------|
-| `DISCORD_TOKEN` | ✅ 있음 | bot.py |
-| `DISCORD_TOKEN_EMAIL` | ✅ 있음 | bot_mail.py |
-| `DISCORD_TOKEN_MEAL` | ✅ 있음 | bot_meal.py |
-| `DISCORD_TOKEN_WEATHER` | ✅ 있음 | bot_weather.py |
-| `DISCORD_TOKEN_WEIGHT` | 📋 발급 필요 | bot_weight.py |
-| `DISCORD_TOKEN_DIARY` | 📋 발급 필요 | bot_diary.py |
-| `DISCORD_TOKEN_SCHEDULE` | 📋 발급 필요 | bot_schedule.py |
-| `OPENAI_API_KEY` | ✅ 있음 | 전체 |
-| `WEATHER_API_KEY` | ✅ 있음 | bot_weather.py |
-| `AIR_API_KEY` | ✅ 있음 | bot_weather.py |
-| `FOOD_API_KEY` | ✅ 있음 | bot_meal.py |
-| `DATABASE_URL` | ✅ 있음 | 전체 |
-| `TAMAGOTCHI_CHANNEL_ID` | ✅ 있음 | 전체 |
-| `N8N_FOOD_WEBHOOK_URL` | 📋 웹훅 URL 수령 후 등록 | bot.py |
-| `TAMAGOTCHI_CATEGORY_ID` | 📋 v4.0 채널 구조 전환 시 | bot.py |
+| 시점 | 처리 |
+|------|------|
+| Phase 2 완료 | Python 봇 신규 개발 중단. `develop` 브랜치 보존 |
+| Phase 5 완료 | `v3.2-legacy` 태그 추가 |
+| 안정화 후 | Python 봇 README에 "deprecated" 표기, 아카이브 |
