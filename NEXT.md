@@ -1,294 +1,336 @@
-# 다음 작업 목록
+# 다음 작업 목록 — React 웹앱 전환
 
-> 기준: 2026-04-29
+> 기준: 2026-04-30 | 브랜치: `feat/web-migration`
 
 ---
 
-## 즉시 실행 가능 — 버그 수정
+## 작업 순서 개요
 
-### BUG-3. `generate_comment_with_pattern()` 미연동 (`utils/gpt_ml_bridge.py`)
-
-**증상:** ML 패턴 분석 결과가 다마고치 대사에 반영되지 않음. 함수는 구현됐지만 어디서도 호출되지 않는 데드코드  
-**위치:** `utils/gpt_ml_bridge.py:34` — `weather_info` 파라미터 누락으로 `generate_comment` 호출 불일치
-
-**수정 내용:**
-```python
-# utils/gpt_ml_bridge.py generate_comment_with_pattern() 내
-comment = await generate_comment(
-    context=...,
-    user=user,
-    today_calories=today_calories,
-    recent_meals=meal_summary,
-    weather_info=None,        # ← 누락된 파라미터 추가
-    extra_context=full_context,
-)
 ```
-
-**연동 위치 (수정 후 교체):**
-```python
-# cogs/scheduler.py _nightly_analysis() 내
-# 기존: generate_comment(...)
-# 변경: generate_comment_with_pattern(user_id=..., user=..., daily_cal_target=..., ...)
+1단계  React 기본 세팅          ← 지금 여기
+2단계  인증 · 온보딩
+3단계  핵심 기능 (식사·체중·날씨)
+4단계  확장 기능 (일정·일기·이메일)
+5단계  n8n 연동
+6단계  알림 · 주간 리포트
 ```
 
 ---
 
-### MAIL-1. 메일봇 `on_thread_create` 미추가 (`bot_mail.py`)
+## 1단계 — React 기본 세팅
 
-**증상:** 메일 스레드(`📧 {이름}의 메일함`) 생성 시 메일봇이 자동 참여하지 않음  
-**수정:** `bot_mail.py`에 아래 이벤트 추가
+### SETUP-1. Vite + React + TypeScript 프로젝트 초기화
 
-```python
-@bot.event
-async def on_thread_create(thread: discord.Thread):
-    if "메일" in thread.name:
-        try:
-            await thread.join()
-        except Exception:
-            pass
+```bash
+npm create vite@latest mukgoorm-web -- --template react-ts
+cd mukgoorm-web
+npm install
+```
+
+**추가 설치 패키지:**
+
+```bash
+npm install @supabase/supabase-js     # Supabase 클라이언트
+npm install react-router-dom          # 라우팅
+npm install openai                    # GPT API
+npm install axios                     # HTTP 클라이언트 (n8n 웹훅 호출)
+npm install recharts                  # 체중 추이 그래프
+npm install react-query               # 서버 상태 관리
+```
+
+### SETUP-2. Supabase 연결 설정
+
+```typescript
+// src/lib/supabase.ts
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+export const supabase = createClient(supabaseUrl, supabaseKey)
+```
+
+**환경변수 (.env.local):**
+
+```
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+VITE_OPENAI_API_KEY=
+VITE_WEATHER_API_KEY=
+VITE_FOOD_API_KEY=
+VITE_N8N_FOOD_WEBHOOK_URL=
+VITE_DISCORD_WEBHOOK_URL=
+```
+
+### SETUP-3. 라우팅 구조
+
+```
+/                 → 캐릭터 상태 메인 화면
+/login            → 로그인
+/onboarding       → 온보딩 (최초 1회)
+/meal             → 식사 기록
+/weight           → 체중 관리
+/weather          → 날씨
+/schedule         → 일정
+/diary            → 일기
+/email            → 이메일 모니터링
+/report           → 주간 리포트
+/settings         → 설정
+```
+
+### SETUP-4. 기본 레이아웃 컴포넌트
+
+```
+src/
+├── components/
+│   ├── Layout.tsx          — 사이드바 + 메인 영역
+│   ├── Sidebar.tsx         — 기능별 네비게이션 (빨간 점 알림 표시)
+│   └── CharacterCard.tsx   — 캐릭터 이미지 + GPT 대사
+├── pages/
+│   ├── Home.tsx
+│   ├── Meal.tsx
+│   ├── Weight.tsx
+│   ├── Weather.tsx
+│   ├── Schedule.tsx
+│   ├── Diary.tsx
+│   ├── Email.tsx
+│   ├── Report.tsx
+│   └── Settings.tsx
+├── lib/
+│   ├── supabase.ts
+│   ├── openai.ts
+│   └── n8n.ts
+└── hooks/
+    ├── useUser.ts
+    ├── useMeals.ts
+    └── useCharacter.ts
 ```
 
 ---
 
-## 체중봇 기능 확장
+## 2단계 — 인증 · 온보딩
 
-### WEIGHT-2. 체중 기록 시 weight_thread에 공개 Embed 전송 (`cogs/weight.py`)
+### AUTH-1. Supabase Auth 이메일 로그인
 
-**현재:** `WeightInputModal.on_submit()` → ephemeral(본인만 보임)  
-**목표:** `weight_thread_id` 스레드에 체중 기록 Embed 공개 전송
+```typescript
+// src/lib/auth.ts
+import { supabase } from './supabase'
 
-```python
-# cogs/weight.py WeightInputModal.on_submit() 하단 추가
+export async function signIn(email: string, password: string) {
+  return supabase.auth.signInWithPassword({ email, password })
+}
 
-thread_id = user.get("weight_thread_id") or user.get("thread_id")
-if thread_id and interaction.guild:
-    thread = interaction.guild.get_thread(int(thread_id))
-    if thread is None:
-        try:
-            ch = await interaction.guild.fetch_channel(int(thread_id))
-            if isinstance(ch, discord.Thread):
-                thread = ch
-        except Exception:
-            thread = None
-    if thread:
-        await thread.send(embed=weight_embed)
+export async function signUp(email: string, password: string) {
+  return supabase.auth.signUp({ email, password })
+}
 
-await interaction.followup.send("✅ 체중이 기록됐어!", ephemeral=True)
+export async function signOut() {
+  return supabase.auth.signOut()
+}
+```
+
+### AUTH-2. 온보딩 플로우
+
+**수집 정보 (기존 DB 스키마 재활용):**
+
+```
+1. 이름 (display_name)
+2. 도시 (city) — 날씨 API용
+3. 동 단위 주소 (address) — 음식 추천용
+4. 성별 (gender)
+5. 나이 (age)
+6. 키 (height)
+7. 목표 체중 (goal_weight)
+8. 기상 시간 (wake_time)
+9. 취침 시간 (sleep_time)
+```
+
+**온보딩 완료 후:**
+- `users` 테이블에 유저 프로필 저장
+- 캐릭터 이미지 초기화 (neutral 상태)
+- 메인 화면으로 이동
+
+---
+
+## 3단계 — 핵심 기능
+
+### MEAL-1. 식사 기록 (텍스트)
+
+**Python 변환 대상:** `cogs/meal.py`, `utils/nutrition.py`
+
+```typescript
+// src/lib/meal.ts
+async function analyzeMeal(text: string, userId: string) {
+  // 1. 식약처 API 칼로리 조회
+  // 2. fallback: GPT-4o-mini 칼로리 추정
+  // 3. Supabase meal_log 저장
+  // 4. hp/hunger 업데이트
+}
+```
+
+### MEAL-2. 식사 기록 (사진)
+
+```typescript
+// GPT-4o-mini Vision 활용
+async function analyzeMealPhoto(imageFile: File, userId: string) {
+  // 1. 이미지 → base64
+  // 2. GPT-4o-mini Vision 분석
+  // 3. 칼로리 추정 + meal_log 저장
+}
+```
+
+### WEIGHT-1. 체중 기록 + 추이 그래프
+
+**Python 변환 대상:** `cogs/weight.py`
+
+```typescript
+// recharts LineChart 활용
+// 최근 14일 체중 추이
+// 목표 체중 기준선 표시
+```
+
+### WEATHER-1. 날씨 표시
+
+**Python 변환 대상:** `cogs/weather.py`, `utils/image.py`
+
+```typescript
+// 기상청 API → 날씨 상태
+// 날씨 상태 → 캐릭터 이미지 선택 로직 (11종)
+// 기상 시간에 자동 반영
 ```
 
 ---
 
-### WEIGHT-3. 체중 추이 그래프 (`cogs/weight.py`)
+## 4단계 — 확장 기능
 
-**필요 패키지:** `pip install matplotlib`
+### SCHEDULE-1. 일정 관리
 
-```python
-import io
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+**Python 변환 대상:** `docs/bots/schedule/` (구상 단계 → 웹앱에서 구현)
 
-def generate_weight_graph(history: list[dict], goal_weight: float) -> io.BytesIO:
-    dates   = [h["recorded_at"].strftime("%m/%d") for h in reversed(history[-14:])]
-    weights = [h["weight"] for h in reversed(history[-14:])]
+```typescript
+// 일정 등록 (제목, 날짜, 반복 여부)
+// 알림: 브라우저 Notification API + Discord Webhook
+// 일정 목록 뷰
+```
 
-    fig, ax = plt.subplots(figsize=(8, 4))
-    ax.plot(dates, weights, marker='o', color='#5865F2', linewidth=2)
-    ax.axhline(y=goal_weight, color='#ED4245', linestyle='--', alpha=0.7, label=f'목표 {goal_weight}kg')
-    ax.set_ylabel("체중 (kg)")
-    ax.set_title("최근 체중 변화")
-    ax.legend()
-    plt.xticks(rotation=45, fontsize=8)
-    plt.tight_layout()
+### DIARY-1. 일기 + 감정 분석
 
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', dpi=100)
-    buf.seek(0)
-    plt.close()
-    return buf
+**Python 변환 대상:** `docs/bots/diary/` (구상 단계 → 웹앱에서 구현)
+
+```typescript
+// 일기 작성 (textarea)
+// GPT-4o-mini 감정 분석
+// 주간 감정 추이 차트
+```
+
+### EMAIL-1. 이메일 모니터링
+
+**Python 변환 대상:** `cogs/email_monitor.py`, `utils/mail.py`
+
+```
+주의: 네이버 IMAP은 서버사이드에서만 접근 가능.
+→ Supabase Edge Function 또는 n8n 워크플로우로 처리.
+→ n8n이 IMAP 폴링 → 새 메일 → Supabase DB 저장 → 웹앱 실시간 조회.
 ```
 
 ---
 
-### WEIGHT-4. 칼로리 목표 자동 조정 제안 (`cogs/weight.py`)
+## 5단계 — n8n 연동
 
-```python
-def _suggest_cal_adjustment(current_weight, goal_weight, history, current_target):
-    if len(history) < 14:
-        return None
-    trend = history[0]["weight"] - history[-1]["weight"]
-    if goal_weight < current_weight:
-        if trend > 0:
-            return current_target - 150
-        if trend < -2:
-            return current_target + 100
-    elif goal_weight > current_weight:
-        if trend < 0:
-            return current_target + 150
-    return None
+### N8N-1. ML 의도 분류 파이프라인
+
+```
+웹앱 → n8n 웹훅 → ML 모델 → 의도 분류 결과 반환
+                  ↕ (학습 데이터 축적)
+              intent_log (Supabase)
+```
+
+**초기 (GPT 라벨링):**
+- 유저 입력 → GPT-4o-mini 의도 분류
+- 결과 + 원문 → intent_log 저장
+
+**이후 (ML 전환):**
+- 50건+ 누적 → n8n에서 ML 모델 학습
+- ML 모델이 의도 분류 → GPT는 엔티티 추출만
+
+### N8N-2. 음식 추천
+
+```typescript
+// src/lib/n8n.ts
+async function requestFoodRecommendation(
+  userId: string,
+  address: string,
+  calRemaining: number,
+  mood: string = ''
+) {
+  const res = await axios.post(import.meta.env.VITE_N8N_FOOD_WEBHOOK_URL, {
+    user_id: userId,
+    address,
+    cal_remaining: calRemaining,
+    mood,
+  })
+  return res.data
+}
+```
+
+### N8N-3. 이메일 모니터링 워크플로우
+
+```
+n8n Cron (1분) → 네이버 IMAP 폴링 → 새 메일 감지
+  → Supabase email_log 저장
+  → 웹앱 실시간 반영 (Supabase Realtime)
 ```
 
 ---
 
-## 신규 봇 구현
+## 6단계 — 알림 · 주간 리포트
 
-### BOT-1. 일기봇 cog (`cogs/diary.py`) — v3.4
+### REPORT-1. 주간 리포트 CSS 뷰
 
-**참고 문서:** `docs/bots/diary/`
-
-**구현 순서:**
 ```
-1. DB 마이그레이션 (init_db 내)
-   CREATE TABLE IF NOT EXISTS diary_log (
-     log_id     SERIAL PRIMARY KEY,
-     user_id    TEXT,
-     content    TEXT,
-     emotion    TEXT,
-     keywords   TEXT,
-     written_at TIMESTAMP DEFAULT NOW()
-   );
-
-2. utils/db.py
-   - create_diary_log(user_id, content, emotion, keywords)
-   - get_diary_logs(user_id, limit=7)
-
-3. cogs/diary.py
-   - DiaryCog: on_message → diary_thread_id 감지
-   - GPT 감정 분석 → diary_log 저장
-   - 주간 감정 추이 Embed (/감정기록)
-
-4. bot_diary.py
-   - await bot.load_extension("cogs.diary") 주석 해제
+기존 Discord 임베드 → 웹앱 내 전용 리포트 페이지 (/report)
+  ─ 주간 칼로리 차트
+  ─ 체중 변화
+  ─ 감정 추이
+  ─ 스트릭 + 배지
 ```
 
----
+### NOTIFY-1. Discord Webhook 발송
 
-### BOT-2. 일정봇 cog (`cogs/schedule.py`) — v3.5
+```typescript
+// src/lib/discord.ts
+async function sendToDiscord(webhookUrl: string, content: object) {
+  await axios.post(webhookUrl, content)
+}
 
-**참고 문서:** `docs/bots/schedule/`
-
-**구현 순서:**
+// 주간 리포트: Discord Embed 형식으로 발송
+// 일정 알림: 단순 텍스트 또는 Embed
 ```
-1. DB 마이그레이션 (init_db 내)
-   CREATE TABLE IF NOT EXISTS schedules (
-     schedule_id  SERIAL PRIMARY KEY,
-     user_id      TEXT,
-     title        TEXT,
-     scheduled_at TIMESTAMP,
-     repeat_type  TEXT DEFAULT 'none',
-     notified     BOOLEAN DEFAULT FALSE,
-     created_at   TIMESTAMP DEFAULT NOW()
-   );
 
-2. utils/db.py
-   - create_schedule / get_pending_schedules / mark_schedule_notified
+### NOTIFY-2. 브라우저 Push 알림 (PWA)
 
-3. cogs/schedule.py
-   - APScheduler 1분 폴링 → pending 알림 전송
-   - /일정추가, /일정목록 슬래시 커맨드
-
-4. bot_schedule.py
-   - await bot.load_extension("cogs.schedule") 주석 해제
+```typescript
+// 일정 알림: Notification API
+// 서비스 워커 등록 → 백그라운드 알림 가능
+// 향후 Electron 패키징 시 OS 네이티브 알림으로 전환
 ```
 
 ---
 
-## n8n 연동 — 음식 추천
+## 미결 사항
 
-### N8N-1. 음식 추천 스레드 생성 + n8n 웹훅 연동
-
-**전제:** `.env`에 `N8N_FOOD_WEBHOOK_URL` 이미 등록됨
-
-#### 1단계 — 온보딩 시 음식 추천 스레드 추가 (`cogs/onboarding.py`)
-
-```python
-# 기존 스레드 생성 블록 이후에 추가
-food_thread = await personal_channel.create_thread(
-    name=f"🍱 {name}의 음식 추천",
-    type=discord.ChannelType.public_thread,
-)
-set_food_rec_thread_id(user_id, str(food_thread.id))
 ```
-
-**DB:** `users` 테이블에 컬럼 추가
-```sql
-ALTER TABLE users ADD COLUMN IF NOT EXISTS food_rec_thread_id TEXT;
-```
-
-#### 2단계 — n8n 웹훅 호출 함수 (`utils/n8n.py`)
-
-```python
-import os, aiohttp
-
-N8N_FOOD_URL = os.getenv("N8N_FOOD_WEBHOOK_URL")
-
-async def request_food_recommendation(user_id: str, address: str, cal_remaining: int, mood: str = "") -> dict:
-    """n8n 음식 추천 웹훅 호출 → 결과 dict 반환"""
-    payload = {
-        "user_id": user_id,
-        "address": address,
-        "cal_remaining": cal_remaining,
-        "mood": mood,
-    }
-    async with aiohttp.ClientSession() as session:
-        async with session.post(N8N_FOOD_URL, json=payload, timeout=aiohttp.ClientTimeout(total=15)) as resp:
-            return await resp.json()
-```
-
-#### 3단계 — 음식 추천 버튼/트리거
-
-**트리거 방식 (택1, 결정 필요):**
-- A. 식사 기록 후 "🍽️ 오늘 저녁 뭐 먹을까?" 버튼 자동 표시 (잔여 칼로리 기반)
-- B. 먹구름봇 메인 채널에서 "음식 추천" 키워드 감지 → 버튼 표시
-- C. `/음식추천` 슬래시 커맨드
-
-**응답 흐름:**
-```
-유저 트리거
-  → bot.py or cogs/meal.py: request_food_recommendation() 호출
-  → n8n: 주소 기반 주변 식당 검색 / GPT 음식 제안 / 잔여 칼로리 고려
-  → n8n → HTTP Response (동기) 또는 Discord 웹훅 직접 전송
-  → food_rec_thread_id 스레드에 추천 Embed 전송
-```
-
-**n8n → Discord 직접 전송 방식 (비동기 추천):**
-n8n 워크플로우 안에서 Discord 웹훅 또는 봇 API로 직접 스레드에 메시지를 보내면
-봇이 응답을 기다릴 필요 없음 → 타임아웃 위험 없음.
-
-```python
-# n8n이 직접 전송하는 경우 봇 쪽 코드는 단순히 요청만 보냄
-await request_food_recommendation(user_id, address, cal_remaining)
-# "음식 추천 중... 🍱 스레드를 확인해줘!" ephemeral 안내
-```
-
-#### 4단계 — `bot_meal.py` / `bot.py` on_thread_create 추가
-
-```python
-@bot.event
-async def on_thread_create(thread: discord.Thread):
-    if "음식" in thread.name or "추천" in thread.name:
-        try:
-            await thread.join()
-        except Exception:
-            pass
+[ ] Supabase RLS 정책 설계 (유저별 데이터 격리)
+[ ] 이미지 생성 (NovelAI) 서버사이드 처리 방법
+    → Supabase Edge Function / n8n 워크플로우
+[ ] 이메일 모니터링 IMAP 처리 위치 확정 (Edge Function vs n8n)
+[ ] PWA vs Electron 패키징 방향 결정
+[ ] Discord Webhook URL 수령
 ```
 
 ---
 
-## 작업 순서 권장
+## 레거시 Python 봇 버그 (웹앱 전환 시 불필요)
 
-```
-[즉시]
-  1. MAIL-1   bot_mail.py on_thread_create 추가
-  2. BUG-3    gpt_ml_bridge 연동 활성화   utils/gpt_ml_bridge.py + cogs/scheduler.py
-
-[다음]
-  3. WEIGHT-2  체중 스레드 공개 Embed     cogs/weight.py
-  4. WEIGHT-3  체중 추이 그래프           cogs/weight.py
-  5. N8N-1     음식 추천 스레드 + n8n 연동 (트리거 방식 결정 후)
-
-[이후]
-  6. WEIGHT-4  칼로리 자동 조정
-  7. BOT-1     일기봇 cog
-  8. BOT-2     일정봇 cog
-```
+기존 NEXT.md의 Python 봇 버그 수정 항목들은 웹앱 전환으로 자동 해소됨.  
+Python 봇은 `develop` 브랜치에 보존. 웹앱 완성 후 아카이브.
