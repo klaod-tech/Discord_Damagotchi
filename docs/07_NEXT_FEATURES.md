@@ -1,328 +1,315 @@
-# 개발 로드맵 및 멀티봇 아키텍처
+# 기능 개발 계획 — React 웹앱 기준
 
-> last_updated: 2026-04-13 | 현재 버전: v3.2
-
----
-
-## 핵심 설계 원칙 — 봇 × 스레드 1:1 구조
-
-기능이 늘어날수록 하나의 봇에 모든 기능을 넣으면:
-- 봇 재시작 시 전체 기능 영향
-- 코드 결합도 증가 → 유지보수 어려움
-- Discord API Rate Limit 집중
-
-**해결책**: 기능별로 봇과 스레드를 1:1로 분리.  
-모든 봇은 **동일한 Supabase DB를 공유**하며 독립적인 이벤트 루프에서 동작.
+> last_updated: 2026-04-30 | 브랜치: `feat/web-migration`
 
 ---
 
-## 현재 구조 (v3.2)
+## 아키텍처 개요
 
 ```
-Discord 서버
-├── #다마고치 채널 (단일 공용 채널)
-│   └── 쓰레드 (유저별, 모두 동일 채널에 혼재)
-│       ├── {이름}의 구름       ← bot.py (먹구름봇) — 버튼 Embed 허브, 설정, 온보딩
-│       ├── 🍽️ {이름}의 식사   ← bot_meal.py (식사봇) — 사진 감지, 칼로리 분석
-│       ├── 🌤️ {이름}의 날씨   ← bot_weather.py (날씨봇) — 기상청/에어코리아
-│       ├── ⚖️ {이름}의 체중   ← bot_weight.py (skeleton)
-│       └── 📧 {이름}의 메일함 ← bot_mail.py (메일봇) — IMAP 폴링
-│
-└── Supabase DB (공유)
+React 웹앱 (메인 UI)
+  │
+  ├── Supabase Auth + DB     — 인증 · 데이터 (기존 스키마 재활용)
+  ├── OpenAI GPT-4o-mini     — 대화 · 분석 · 대사
+  ├── n8n                    — ML · 자동화 · 이메일 IMAP · 음식 추천
+  └── 알림 레이어
+        ├── Discord Webhook  — 리포트 · 일정 Push
+        └── 이메일 SMTP      — 리포트 발송 (선택)
 ```
-
-### 실행
-
-```bash
-python bot.py         # 먹구름봇 — 온보딩/설정/하루정리/체중
-python bot_mail.py    # 메일봇   — IMAP 폴링/이메일 알림
-python bot_meal.py    # 식사봇   — 사진 감지/칼로리 분석
-python bot_weather.py # 날씨봇   — 기상청/에어코리아 스케줄
-```
-
-### 환경변수
-
-| 변수명 | 봇 | 설명 |
-|--------|-----|------|
-| `DISCORD_TOKEN` | bot.py | 먹구름봇 토큰 |
-| `DISCORD_TOKEN_EMAIL` | bot_mail.py | 메일봇 토큰 |
-| `DISCORD_TOKEN_MEAL` | bot_meal.py | 식사봇 토큰 |
-| `DISCORD_TOKEN_WEATHER` | bot_weather.py | 날씨봇 토큰 |
-| `DISCORD_TOKEN_WEIGHT` | bot_weight.py | 체중관리봇 토큰 |
 
 ---
 
-## 오케스트레이터 아키텍처 (목표 설계)
+## 기능 1 — 캐릭터 상태 (메인 화면)
 
-먹구름봇(bot.py)은 #먹구름 채널에서 유저 메시지를 수신하고,
-GPT로 의도를 파악한 뒤 관련 전문봇들에게 작업을 위임하는 **오케스트레이터** 역할을 담당한다.
+**핵심 원칙:** hp/hunger/mood 수치 직접 노출 금지. 이미지+대사로만.
+
+### 컴포넌트 구조
+
+```typescript
+// src/components/CharacterCard.tsx
+// ─ 이미지 선택 로직 (11종, 날씨·hunger·mood 조합)
+// ─ GPT-4o-mini 대사 생성
+// ─ 캐릭터 상태 자동 갱신 (식사·체중 기록 시)
+```
+
+### 이미지 선택 로직 (Python → JS 변환)
+
+```typescript
+// utils/image.py → src/lib/image.ts
+function selectCharacterImage(
+  weather: string,
+  hunger: number,  // 외부 노출 X, 내부 계산용
+  mood: number,
+  hp: number
+): string {
+  // 11종 이미지 우선순위 로직
+  // 날씨봇 기상 시간 → 이미지 자동 교체 포함
+}
+```
+
+---
+
+## 기능 2 — 식사 기록
+
+### 텍스트 입력 흐름
+
+```
+유저 텍스트 입력
+  → 식약처 API 칼로리 조회 (1순위)
+  → GPT-4o-mini 칼로리 추정 fallback (2순위)
+  → meal_log 저장
+  → hp/hunger 업데이트
+  → 캐릭터 상태 갱신 + GPT 대사
+```
+
+### 사진 입력 흐름
+
+```
+사진 파일 업로드
+  → base64 변환
+  → GPT-4o-mini Vision 분석
+  → 음식명 + 칼로리 추정
+  → 확인 UI → meal_log 저장
+```
+
+### ML 연동 (n8n)
+
+```
+식사 기록 → intent_log 저장 (학습 데이터 축적)
+  → 50건+ 누적 → n8n ML 모델 학습
+  → 이후: ML이 의도 분류, GPT는 엔티티 추출만
+```
+
+---
+
+## 기능 3 — 체중 관리
+
+### 기능 목록
+
+```
+[ ] 체중 기록 (kg 입력)
+[ ] 최근 14일 추이 그래프 (recharts LineChart)
+[ ] 목표 체중 기준선 표시
+[ ] 목표 달성 알림
+[ ] 칼로리 목표 자동 조정 제안
+    ─ 14일 추이 분석 → 감량/유지/증량 방향 제안
+```
+
+### 칼로리 공식
+
+Mifflin-St Jeor (Python 봇과 동일):
+
+```typescript
+function calcBMR(gender: string, weight: number, height: number, age: number) {
+  if (gender === 'male') return 10 * weight + 6.25 * height - 5 * age + 5
+  return 10 * weight + 6.25 * height - 5 * age - 161
+}
+```
+
+---
+
+## 기능 4 — 날씨
+
+### 데이터 소스
+
+- 기상청 공공데이터 API (초단기실황조회)
+- 에어코리아 API (PM10, PM2.5)
 
 ### 흐름
 
 ```
-유저: "나 오늘 광교산 가서 샌드위치 먹었어"
-  ↓
-먹구름봇 (오케스트레이터)
-  → GPT 의도 분석
-      - 식사 언급 → 식사봇 트리거
-      - 일상 기록 → 일기봇 트리거
-      - 칼로리 관련 → 체중관리봇 트리거
-  ↓
-  ├── bot_meal.py  → 식사 스레드에 "샌드위치" 분석 결과 알림
-  ├── bot_diary.py → 일기 스레드에 오늘 기록 저장 유도
-  └── bot_weight.py → 체중관리 스레드에 칼로리 반영
+기상 시간 도달 (APScheduler → 웹앱에서는 useEffect + interval)
+  → 기상청 API 호출
+  → 날씨 상태 분류
+  → 캐릭터 이미지 자동 교체 (별도 알림 없음 — 핵심 원칙 유지)
+  → 미세먼지 → 캐릭터 대사에 간접 반영
 ```
 
-```
-유저: "나 내일 제주도 가서 해수욕장 갔다 올거야"
-  ↓
-먹구름봇 (오케스트레이터)
-  → GPT 의도 분석
-      - 미래 일정 → 일정봇 트리거
-      - 지역 언급 → 날씨봇 트리거
-  ↓
-  ├── bot_schedule.py → 일정 스레드에 "제주도 해수욕장" 일정 등록 유도
-  └── bot_weather.py  → 날씨 스레드에 제주도 내일 날씨 미리 조회
-```
-
-### 봇 간 통신 방식 (설계 예정)
-
-전문봇들은 독립적인 프로세스라 직접 함수 호출 불가.
-아래 방식 중 하나로 구현 예정:
-
-| 방식 | 설명 | 장단점 |
-|------|------|--------|
-| **Supabase DB 태스크 큐** | 오케스트레이터가 `task_queue` 테이블에 작업 삽입 → 전문봇이 주기적으로 폴링 | 단순/안정적, 실시간성 낮음 |
-| **Discord 메시지 신호** | 오케스트레이터가 봇 전용 채널에 신호 메시지 → 전문봇이 `on_message` 감지 | 실시간, Discord 의존적 |
-| **내부 HTTP API** | 각 봇이 로컬 HTTP 서버 노출 → 오케스트레이터가 POST 호출 | 빠름, 배포 시 포트 관리 필요 |
-
-> 현재 권장: **Supabase DB 태스크 큐** — 봇이 늘어나도 통신 구조가 단순하게 유지됨.
+> **핵심 원칙:** 날씨는 별도 알림 없음. 기상 시간에 이미지 교체로만 전달.
 
 ---
 
-## 목표 구조 (v4.0+)
+## 기능 5 — 일정 관리
+
+**Python 봇에서 구상 단계 → 웹앱에서 실제 구현**
+
+### 기능 목록
 
 ```
-Discord 서버
-├── #먹구름-시작  (공용 — 온보딩 진입점)
-│
-└── 📁 먹구름  (카테고리)
-    │
-    ├── #유저A-채팅창  ← 유저A 전용 채널 (메인봇 자연어 대화 공간)
-    │   │  캐릭터 상태 Embed 고정
-    │   │
-    │   │  유저A: "나 오늘 광교산에서 샌드위치 먹었어"
-    │   │    ↓ GPT/ML 의도 분류
-    │   │  먹구름봇 → 식사봇 + 일기봇 동시 트리거 (task_queue)
-    │   │
-    │   ├── 🍽️ A의-식사기록   ← bot_meal.py — 식사 입력/칼로리 분석
-    │   ├── 🌤️ A의-날씨       ← bot_weather.py — 날씨/미세먼지 알림
-    │   ├── ⚖️ A의-체중관리   ← bot_weight.py — 체중 기록/목표/추이
-    │   ├── 📧 A의-메일함     ← bot_mail.py — 이메일 알림
-    │   ├── 📔 A의-일기장     ← bot_diary.py — 일기/감정 분석 (v3.4~)
-    │   └── 📅 A의-일정표     ← bot_schedule.py — 일정/알림 (v3.5~)
-    │
-    └── #유저B-채팅창  ← 유저B 전용 채널 (동일 구조)
-
-└── Supabase DB (전체 공유)
+[ ] 일정 등록 (제목, 날짜/시간, 반복 여부)
+[ ] 일정 목록 뷰
+[ ] D-day 표시
+[ ] 알림
+    ─ 브라우저 Notification API (웹앱 열려 있을 때)
+    ─ Discord Webhook (앱 닫혀 있을 때)
+[ ] 반복 일정 (매일/매주/매월)
 ```
 
-> **먹구름봇 역할**: 버튼 허브 → **자연어 오케스트레이터**로 전환.  
-> GPT(초기) → ML(50건+ 누적 후) 의도 분류로 전문봇 자동 트리거.  
-> intent_log 테이블에 학습 데이터 축적 → ML 개인화로 점진적 GPT 비용 절감.
-
----
-
-## 기능별 구현 현황
-
-| 기능 | 봇 | 스레드 | 상태 |
-|------|-----|--------|------|
-| 온보딩 / 설정 / 전체 조율 | bot.py | — | ✅ 운영 중 |
-| 식사 입력 / 칼로리 분석 | bot_meal.py | 식사 기록 | ✅ v3.2 분리 완료 |
-| 날씨 / 미세먼지 알림 | bot_weather.py | 날씨 | ✅ v3.2 분리 완료 |
-| 체중 기록 + 목표 관리 | bot_weight.py | 체중관리 | 🔄 skeleton (분리 예정) |
-| 스트릭 / 배지 / 주간 리포트 | bot.py | — | ✅ 구현 완료 |
-| 이메일 모니터링 | bot_mail.py | 메일함 | ✅ v3.1 완료 |
-| 음식 추천 (n8n) | bot.py | — | 🔧 준비 중 (웹훅 URL 수령 후 즉시 연동 가능) |
-| 일기 / 감정 분석 | bot_diary.py | 일기장 | 📋 구상 단계 (UX 미결, 코드 없음) |
-| 일정 / 캘린더 / 알림 | bot_schedule.py | 일정표 | 📋 구상 단계 (UX 미결, 코드 없음) |
-| 유저별 전용 채널 구조 | bot.py | — | 📋 v4.0 설계 완료, 구현 예정 |
-| ML 의도 분류기 | bot.py | — | 📋 v4.0 설계 완료, 데이터 수집부터 시작 |
-
----
-
-## Phase 3 — 음식 추천 (n8n 연동)
-
-> 현재: 버튼 표시 ("준비 중"), n8n 연동 대기 중
-
-### 구조
-
-```
-[🍜 뭐 먹고 싶어?] 클릭
-  → bot.py → POST n8n 웹훅 URL
-    payload: 위치 + 오늘 식사 + 이번 주 식사 + 남은 칼로리
-  → n8n 워크플로우 (팀원 담당)
-    → 외부 음식/식당 API
-    → 추천 결과 생성
-  → Discord Embed (Ephemeral)
-```
-
-### 웹훅 페이로드
-
-```json
-{
-  "user_id": "123456789",
-  "location": { "city": "서울", "address": "마포구 합정동" },
-  "remaining_calories": 620,
-  "today_calories": 1380,
-  "daily_cal_target": 2000,
-  "today_meals": ["비빔밥", "아메리카노"],
-  "weekly_meals": ["비빔밥", "삼겹살", "라면", "치킨", "된장찌개"]
-}
-```
-
-### n8n 응답 포맷 (미정 — 팀원 확정 후 구현)
-
-```
-[ ] 응답 Content-Type: application/json
-[ ] 추천 결과 JSON 구조
-[ ] 추천 개수 (1개? 3개?)
-[ ] 실패 시 에러 응답 형식
-```
-
-### 환경변수 추가 필요
-
-```
-N8N_FOOD_WEBHOOK_URL   # n8n 음식 추천 웹훅 URL
-```
-
-### 위치 정보 상세화 (확정)
-
-`address` 필드 별도 추가로 결정:
-- `city` — 날씨 API 전용 (기존 유지, 시 단위)
-- `address` — 음식 추천 전용 (신규, nullable, 구/동 단위 예: "마포구 합정동")
-- 날씨 코드 무변경, 기존 유저 영향 없음
-- **v4.0 채널 구조 전환 시 온보딩 모달에 address 필드 추가**
-
----
-
-## Phase 4 — 일기봇 (bot_diary.py)
-
-> 상태: 📋 구상 단계 — UX 흐름 미결, 코드 없음  
-> 상세 문서: [`docs/bots/diary/`](bots/diary/)
-
-### 개요
-
-유저가 하루 일기를 작성하면 GPT가 감정을 분석하고, ML이 패턴을 학습하여
-장기 감정 추이를 트래킹한다.
-
-### 예상 기능
-
-| 기능 | 설명 |
-|------|------|
-| 일기 작성 | 텍스트 입력 Modal → `diary_log` 저장 |
-| 감정 분석 | GPT → 긍정/부정/중립 + 핵심 감정 키워드 |
-| 감정 추이 | 주간/월간 감정 변화 Embed |
-| ML 연동 | 감정 패턴 → 식사 패턴과 교차 분석 (장기 목표) |
-
-### 필요 DB
+### DB (기존 schedules 테이블 재활용)
 
 ```sql
-diary_log (
-  log_id      SERIAL PRIMARY KEY,
-  user_id     TEXT,
-  content     TEXT,       -- 일기 원문
-  emotion     TEXT,       -- GPT 분석 감정 (긍정/부정/중립)
-  keywords    TEXT,       -- 감정 키워드 JSON
-  written_at  TIMESTAMP
-)
-```
-
-### 스레드
-
-```
-{이름}의 일기장 — bot_diary.py 전용
-  이미지: 📓 일기장 아이콘
-  자동 archive: 10080분 (7일)
+CREATE TABLE IF NOT EXISTS schedules (
+  schedule_id  SERIAL PRIMARY KEY,
+  user_id      TEXT,
+  title        TEXT,
+  scheduled_at TIMESTAMP,
+  repeat_type  TEXT DEFAULT 'none',  -- none/daily/weekly/monthly
+  notified     BOOLEAN DEFAULT FALSE,
+  created_at   TIMESTAMP DEFAULT NOW()
+);
 ```
 
 ---
 
-## Phase 5 — 일정봇 (bot_schedule.py)
+## 기능 6 — 일기 + 감정 분석
 
-> 상태: 📋 구상 단계 — UX 흐름 미결, 코드 없음  
-> 상세 문서: [`docs/bots/schedule/`](bots/schedule/)
+**Python 봇에서 구상 단계 → 웹앱에서 실제 구현**
 
-### 개요
+### 기능 목록
 
-유저가 할일/일정을 등록하면 지정 시간에 디스코드 알림을 보낸다.
+```
+[ ] 일기 작성 (textarea, 날짜별 1개)
+[ ] GPT-4o-mini 감정 분석 → 키워드 + 감정 레이블
+[ ] 주간 감정 추이 차트 (recharts)
+[ ] diary_log 저장
+```
 
-### 예상 기능
-
-| 기능 | 설명 |
-|------|------|
-| 일정 등록 | 날짜 + 시간 + 내용 Modal |
-| 알림 | APScheduler → 지정 시간에 스레드 알림 |
-| 일정 목록 | 오늘/이번 주 일정 조회 |
-| 반복 일정 | 매일/매주 반복 옵션 |
-
-### 필요 DB
+### DB (기존 diary_log 테이블 재활용)
 
 ```sql
-schedules (
-  schedule_id   SERIAL PRIMARY KEY,
-  user_id       TEXT,
-  title         TEXT,
-  scheduled_at  TIMESTAMP,
-  repeat_type   TEXT,   -- none | daily | weekly
-  notified      BOOLEAN DEFAULT FALSE,
-  created_at    TIMESTAMP
-)
+CREATE TABLE IF NOT EXISTS diary_log (
+  log_id     SERIAL PRIMARY KEY,
+  user_id    TEXT,
+  content    TEXT,
+  emotion    TEXT,
+  keywords   TEXT,
+  written_at TIMESTAMP DEFAULT NOW()
+);
 ```
 
 ---
 
-## 공유 모듈 전략
+## 기능 7 — 이메일 모니터링
 
-봇이 늘어날수록 공통 코드는 `utils/`에 집중화.
+**Python 봇에서 구현됨 → 웹앱에서는 n8n이 서버사이드 처리**
 
-| 모듈 | 역할 | 사용 봇 |
-|------|------|---------|
-| `utils/db.py` | DB CRUD 전체 | 모든 봇 |
-| `utils/gpt.py` | GPT 래퍼 | bot.py, bot_mail.py, bot_diary.py |
-| `utils/email_ui.py` | 이메일 Modal 공유 | bot.py, bot_mail.py |
-| `utils/mail.py` | IMAP/SMTP | bot_mail.py |
-| `utils/badges.py` | 배지 로직 | bot.py |
+### 흐름
+
+```
+n8n Cron (1분)
+  → 네이버 IMAP 폴링
+  → 새 메일 감지
+  → Supabase email_log 저장
+  → Supabase Realtime → 웹앱 실시간 반영
+  → 사이드바 빨간 점 알림 표시
+```
+
+> 브라우저에서 IMAP 직접 접근 불가 → n8n 서버사이드 처리 필수.
+
+### 기능 목록
+
+```
+[ ] 이메일 목록 뷰 (읽음/안읽음)
+[ ] 발신자 관리 (화이트리스트)
+[ ] 스팸 필터 (GPT-4o-mini 분류)
+[ ] 실시간 새 메일 알림 (사이드바 빨간 점)
+```
 
 ---
 
-## 미결 사항
+## 기능 8 — 주간 리포트
+
+**Discord 임베드 한계 해소 → CSS 풀 커스텀 리포트 페이지**
+
+### 리포트 구성
 
 ```
-n8n 연동 (Phase 3)
-[ ] n8n에서 웹훅 URL 수령 후 N8N_FOOD_WEBHOOK_URL 등록
-[ ] n8n 응답 JSON 포맷 확인 후 embed 구성
-※ address 컬럼 추가: 확정 (v4.0 채널 구조 전환 시 온보딩에 추가)
+/report 페이지
+  ├── 이번 주 총 칼로리 vs 목표
+  ├── 일별 칼로리 바 차트
+  ├── 체중 변화 (주간)
+  ├── 감정 추이 (주간)
+  ├── 스트릭 현황
+  └── 배지 달성 현황 (7종)
+```
 
-다음 봇 구현
-[ ] bot_weight.py — cogs.weight 이전 (기능 변경 없이 분리, 이후 점진적 확장)
-[ ] bot_diary.py  — UX 흐름 구체화 → 구현 시작
-[ ] bot_schedule.py — UX 흐름 구체화 → 구현 시작
+### 발송 옵션
 
-채널 구조 전환 (v4.0)
-[ ] TAMAGOTCHI_CATEGORY_ID 환경변수 등록 (Discord 카테고리 생성 후)
-[ ] cogs/onboarding.py — 전용 채널 생성 방식으로 전환
-[ ] users.personal_channel_id 컬럼 마이그레이션
-[ ] users.address 컬럼 마이그레이션
+```
+[ ] Discord Webhook (임베드 요약 + 리포트 링크)
+[ ] 이메일 SMTP (n8n 워크플로우)
+    ─ HTML 이메일로 리포트 풀 내용 발송
+```
 
-ML 의도 분류기 (v4.0+)
-[ ] intent_log 테이블 생성
-[ ] utils/intent_classifier.py 신규 생성
-[ ] bot.py on_message GPT 의도 분류 + intent_log 저장 로직 추가
-[ ] 매주 일요일 ML 재학습 스케줄러 추가
+---
 
-배포
-[ ] 호스팅 방식 결정 (Railway / Render / VPS — 7개 봇 프로세스 기준)
-[ ] .env → 플랫폼 시크릿 이전
-[ ] 20인 서버 기준 Supabase 커넥션 풀 설정 확인
+## 기능 9 — 음식 추천 (n8n)
+
+**n8n 워크플로우 이미 구성됨. 웹훅 URL 수령 후 즉시 연결 가능.**
+
+### 흐름
+
+```
+유저 요청 (잔여 칼로리 기반 버튼 또는 자동 제안)
+  → VITE_N8N_FOOD_WEBHOOK_URL POST
+  → n8n: 주소 기반 주변 식당 검색 + 잔여 칼로리 고려
+  → 추천 결과 반환
+  → 음식 추천 UI 표시
+```
+
+### 트리거 방식 (결정 필요)
+
+```
+[ ] A. 식사 기록 후 잔여 칼로리 기반 자동 제안
+[ ] B. "음식 추천" 버튼 클릭
+[ ] C. 자연어 입력 감지 (ML 의도 분류 연동)
+```
+
+---
+
+## ML 의도 분류 (n8n 파이프라인)
+
+### 단계별 전환
+
+```
+초기: GPT-4o-mini 의도 분류
+  → intent_log 저장 (user_id, message, intent, entity_json)
+
+이후: ML 모델 학습 (n8n 처리)
+  → 유저별 50건+ 누적 → TF-IDF + LogisticRegression 학습
+  → ML이 의도 분류 → GPT는 엔티티 추출만
+  → GPT 비용 절감 + 개인화
+```
+
+### intent_log 테이블
+
+```sql
+CREATE TABLE IF NOT EXISTS intent_log (
+  log_id        SERIAL PRIMARY KEY,
+  user_id       TEXT NOT NULL,
+  message       TEXT NOT NULL,
+  intent        TEXT NOT NULL,  -- meal/weight/diary/schedule/email/none
+  entity_json   TEXT,
+  classified_by TEXT DEFAULT 'gpt',  -- 'gpt' | 'ml'
+  created_at    TIMESTAMP DEFAULT NOW()
+);
+```
+
+---
+
+## 사이드바 UI — 기능별 알림 표시
+
+Discord 쓰레드 분리 목적(기능별 메시지 구분)을 웹앱 사이드바로 대체.
+
+```
+사이드바
+├── 🏠 홈 (캐릭터 상태)
+├── 🍽️ 식사 기록          ← 오늘 입력 안 했으면 빨간 점
+├── ⚖️ 체중 관리
+├── 🌤️ 날씨
+├── 📅 일정               ← 오늘 일정 있으면 빨간 점
+├── 📔 일기               ← 오늘 입력 안 했으면 빨간 점
+├── 📧 이메일              ← 새 메일 있으면 빨간 점
+├── 📊 주간 리포트
+└── ⚙️ 설정
 ```
