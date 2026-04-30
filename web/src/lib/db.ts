@@ -5,7 +5,7 @@ export async function getUserProfile(userId: string) {
     .from('users')
     .select('*')
     .eq('user_id', userId)
-    .single()
+    .maybeSingle()
   return data
 }
 
