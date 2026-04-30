@@ -22,6 +22,13 @@ export interface UserProfile {
   badges?: string
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([
+    promise,
+    new Promise<null>(resolve => setTimeout(() => resolve(null), ms)),
+  ])
+}
+
 export function useUser() {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
@@ -30,29 +37,36 @@ export function useUser() {
   useEffect(() => {
     let mounted = true
 
-    // getSession() 대신 onAuthStateChange만 사용
-    // INITIAL_SESSION 이벤트가 페이지 로드 시 저장된 세션을 즉시 전달함
+    // 5초 안전망: 어떤 경우에도 로딩 해제
+    const safetyTimer = setTimeout(() => {
+      if (mounted) setLoading(false)
+    }, 5000)
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (event, session) => {
+        console.log('[useUser] auth event:', event, session?.user?.id)
         if (!mounted) return
 
         const authUser = session?.user ?? null
         setUser(authUser)
 
         if (authUser) {
-          const p = await getUserProfile(authUser.id).catch(() => null)
+          // 3초 타임아웃 적용
+          const p = await withTimeout(getUserProfile(authUser.id), 3000).catch(() => null)
           if (!mounted) return
           setProfile(p)
         } else {
           setProfile(null)
         }
 
+        clearTimeout(safetyTimer)
         if (mounted) setLoading(false)
       }
     )
 
     return () => {
       mounted = false
+      clearTimeout(safetyTimer)
       subscription.unsubscribe()
     }
   }, [])
