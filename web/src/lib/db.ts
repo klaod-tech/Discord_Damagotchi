@@ -24,7 +24,7 @@ export async function createUserProfile(profile: {
   dinner_time: string
 }) {
   const { error } = await supabase.from('users').insert(profile)
-  if (error) throw error
+  if (error) throw new Error(error.message + ' | code: ' + error.code)
 }
 
 export async function updateUserProfile(userId: string, updates: Record<string, unknown>) {
