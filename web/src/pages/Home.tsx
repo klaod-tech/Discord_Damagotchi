@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useUser } from '../hooks/useUser'
 import { selectCharacterImage } from '../lib/image'
 import { analyzeIntent } from '../lib/intent'
+import { recordMeal } from '../lib/meal'
 import { supabase } from '../lib/supabase'
 
 interface Message {
