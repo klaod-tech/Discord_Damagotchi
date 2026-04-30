@@ -28,36 +28,48 @@ export function useUser() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data }) => {
-      const authUser = data.session?.user ?? null
-      setUser(authUser)
-      if (authUser) {
-        try {
-          const p = await getUserProfile(authUser.id)
-          setProfile(p)
-        } catch {
-          setProfile(null)
-        }
-      }
-      setLoading(false)
-    })
+    let mounted = true
 
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    async function init() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!mounted) return
+
+        const authUser = session?.user ?? null
+        setUser(authUser)
+
+        if (authUser) {
+          const p = await getUserProfile(authUser.id).catch(() => null)
+          if (!mounted) return
+          setProfile(p)
+        }
+      } catch {
+        // 세션 조회 실패해도 loading은 해제
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+
+    init()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return
       const authUser = session?.user ?? null
       setUser(authUser)
+
       if (authUser) {
-        try {
-          const p = await getUserProfile(authUser.id)
-          setProfile(p)
-        } catch {
-          setProfile(null)
-        }
+        const p = await getUserProfile(authUser.id).catch(() => null)
+        if (!mounted) return
+        setProfile(p)
       } else {
         setProfile(null)
       }
     })
 
-    return () => listener.subscription.unsubscribe()
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   return { user, profile, loading }
