@@ -58,21 +58,25 @@ export default function Home() {
       const result = await analyzeIntent(userMsg, profile.tamagotchi_name)
       setMessages(prev => [...prev, { id: Date.now() + 1, role: 'bot', text: result.reply }])
 
-      // 의도별 후속 처리 (추후 기능 연동)
-      if (result.intent === 'meal') {
-        setTimeout(() => {
+      // 의도별 후속 처리
+      if (result.intent === 'meal' && user) {
+        const mealResult = await recordMeal(user.id, userMsg, result.entities?.meal_type ?? 'unknown')
+        if (mealResult) {
           setMessages(prev => [...prev, {
             id: Date.now() + 2, role: 'bot',
-            text: '식사 기록할까? 왼쪽 🍽️ 식사 기록 눌러줘!'
+            text: `${mealResult.foodName} 기록했어! 약 ${mealResult.totalCalories}kcal 🍽️`
           }])
-        }, 800)
+          // 타마고치 상태 새로고침
+          const { data } = await supabase.from('tamagotchi').select('*').eq('user_id', user.id).maybeSingle()
+          if (data) setTamagotchi(data)
+        }
       } else if (result.intent === 'weight') {
         setTimeout(() => {
           setMessages(prev => [...prev, {
             id: Date.now() + 2, role: 'bot',
-            text: '체중 기록하러 갈게! ⚖️ 체중 관리 눌러줘!'
+            text: '체중은 왼쪽 ⚖️ 체중 관리에서 기록할 수 있어!'
           }])
-        }, 800)
+        }, 600)
       }
     } catch {
       setMessages(prev => [...prev, { id: Date.now() + 1, role: 'bot', text: '앗, 잠깐 문제가 생겼어 😥 다시 말해줘!' }])
