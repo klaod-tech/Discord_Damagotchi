@@ -46,8 +46,12 @@ export function useUser() {
       const authUser = session?.user ?? null
       setUser(authUser)
       if (authUser) {
-        const p = await getUserProfile(authUser.id)
-        setProfile(p)
+        try {
+          const p = await getUserProfile(authUser.id)
+          setProfile(p)
+        } catch {
+          setProfile(null)
+        }
       } else {
         setProfile(null)
       }
