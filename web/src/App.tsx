@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
+import ProtectedRoute from './components/ProtectedRoute'
 import Home from './pages/Home'
 import Meal from './pages/Meal'
 import Weight from './pages/Weight'
@@ -18,7 +19,8 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/onboarding" element={<Onboarding />} />
-        <Route element={<Layout />}>
+        <Route element={<ProtectedRoute />}>
+          <Route element={<Layout />}>
           <Route path="/" element={<Home />} />
           <Route path="/meal" element={<Meal />} />
           <Route path="/weight" element={<Weight />} />
