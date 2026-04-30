@@ -1,414 +1,194 @@
-# 문서 수정 계획서 — 아키텍처 의도 불일치 항목
+# 전환 계획서 — Python Discord 봇 → React 웹앱
 
-> 작성일: 2026-04-14  
-> 목적: 현재 docs가 실제 설계 의도와 다른 부분을 모두 기록하고 수정 방향을 명시  
-> 수정 우선순위: ★★★ = 즉시 수정 필수 / ★★ = 중요 / ★ = 경미
-
----
-
-## 불일치 항목 요약
-
-| # | 항목 | 현재 docs | 실제 의도 | 우선순위 | 영향 파일 수 |
-|---|------|-----------|-----------|----------|------------|
-| 1 | 디스코드 채널 구조 | 단일 채널 + 유저별 쓰레드 | 유저별 전용 채널 + 기능별 쓰레드 | ★★★ | 7개 |
-| 2 | 메인봇 UX 방식 | 버튼 5개 Embed 허브 | 자연어 대화 방식 (버튼 폐기) | ★★★ | 5개 |
-| 3 | 오케스트레이터 라우팅 | GPT만 사용 | GPT + ML 하이브리드 학습 | ★★ | 3개 |
-| 4 | 미구현 봇 상태 표기 | "설계 완료" | 구상 단계 (UX 미결) | ★★ | 6개 |
-| 5 | n8n 연동 상태 | 미결, 팀원 확정 후 | 이미 n8n 구성됨, 웹훅만 연결 | ★ | 2개 |
-| 6 | 위치 정보 수집 | 미결 (옵션 B 권장) | 채널 구조 변경 시 동 단위 추가로 결정 | ★ | 2개 |
-| 7 | 유저 규모 | 언급 없음 | 2인 현재, 최대 20인 소규모 서버 목표 | ★ | 2개 |
+> 작성일: 2026-04-30  
+> 브랜치: `feat/web-migration`  
+> 목적: Discord 봇의 구조적 한계를 해소하고 React 웹앱으로 전환하는 로드맵
 
 ---
 
-## 항목 1 — 디스코드 채널 구조 ★★★
+## 전환 배경 요약
 
-### 현재 docs가 말하는 구조 (잘못됨)
+| 문제 | Discord 봇 한계 | 웹앱 해결 |
+|------|----------------|----------|
+| 프라이버시 | 관리자가 모든 유저 쓰레드 열람 가능. Discord 구조상 막을 수 없음 | Supabase Auth RLS — 유저별 완전 격리 |
+| 디자인 | 임베드 커스텀 불가, 이모티콘 외 표현 한계 | CSS 자유 활용 |
+| 리포트 | Discord 임베드 주간 리포트 가독성 최악 | 전용 리포트 페이지 (HTML/CSS) |
+| 확장성 | 버튼/Modal UX 한계, 기능 추가마다 Cog 분리 필요 | 웹 라우팅 기반 자유로운 페이지 구성 |
+| 배포 | Discord 앱 설치 필요 | 브라우저 접속, 향후 Electron 옵션 |
 
-```
-서버
-└── #다마고치 채널 (공용, 하나)
-    ├── 유저A의 구름 (쓰레드)
-    ├── 유저A의 식사 기록 (쓰레드)
-    ├── 유저A의 날씨 (쓰레드)
-    ├── 유저B의 구름 (쓰레드)
-    └── 유저B의 식사 기록 (쓰레드)
-    ... (모든 유저가 동일 채널에 혼재)
-```
+---
 
-### 실제 의도하는 구조 (수정 목표)
+## Phase 1 — React 기본 세팅 (현재)
 
-```
-서버
-├── #먹구름-시작  (공용, 온보딩 진입점)
-│
-└── 📁 [카테고리] 먹구름 유저 (온보딩 시 자동 생성)
-    │
-    ├── #유저A-채팅창  ← 유저A의 전용 채널 (메인봇 대화 공간)
-    │   ├── 🌤️ A의-날씨봇  (쓰레드 — 날씨봇 전용)
-    │   ├── 📅 A의-일정봇  (쓰레드 — 일정봇 전용)
-    │   ├── 🍽️ A의-식사봇  (쓰레드 — 식사봇 전용)
-    │   ├── ⚖️ A의-체중봇  (쓰레드 — 체중봇 전용)
-    │   ├── 📔 A의-일기봇  (쓰레드 — 일기봇 전용)
-    │   └── 📧 A의-메일봇  (쓰레드 — 메일봇 전용)
-    │
-    └── #유저B-채팅창  ← 유저B의 전용 채널
-        └── (동일 구조)
-```
+### 목표
+웹앱 개발 환경 구축 + Supabase 연결 + 기본 레이아웃
 
-### 핵심 변경점
-
-1. **쓰레드 → 채널**: 기존 유저별 "쓰레드"가 유저별 "전용 채널"로 격상
-2. **메인 대화 공간**: 유저는 자신의 전용 채널에서 메인봇과 자연어로 대화
-3. **기능봇 쓰레드**: 기능별 쓰레드는 전용 채널 안에 생성 (기존처럼 공용 채널에 생성 X)
-4. **프라이버시**: 채널 권한 설정으로 유저A는 유저B의 채널 조회 불가
-5. **온보딩 변화**: 쓰레드 5개 생성 → 전용 채널 1개 + 기능봇 쓰레드들 생성
-
-### DB 변경 필요
-
-```sql
--- users 테이블에 신규 컬럼 추가
-ALTER TABLE users ADD COLUMN IF NOT EXISTS personal_channel_id TEXT;
--- 유저 전용 채널 ID (기존 thread_id 대체/보완)
-
--- 기존 thread_id는 fallback용으로 유지 (기존 유저 호환)
-```
-
-### 환경변수 변경 필요
-
-```bash
-# 기존: TAMAGOTCHI_CHANNEL_ID — 모든 기능이 이 채널 하위로 들어가는 구조
-# 변경: TAMAGOTCHI_ENTRY_CHANNEL_ID — 온보딩 진입점 채널만
-# 추가: TAMAGOTCHI_CATEGORY_ID — 유저 전용 채널이 생성될 카테고리 ID
-```
-
-### 수정 대상 파일
-
-| 파일 | 수정 섹션 |
-|------|---------|
-| `docs/01_OVERVIEW.md` | "디스코드 채널·쓰레드 구조" 섹션 전체 |
-| `docs/02_FLOWS.md` | 온보딩 흐름 전체 |
-| `docs/07_NEXT_FEATURES.md` | 현재 구조 / 목표 구조 다이어그램 |
-| `docs/PRODUCTION_ROADMAP.md` | 배포 후 검증 체크리스트 |
-| `docs/TEAM_OVERVIEW.md` | 섹션 6 (디스코드 채널 구조) |
-| `docs/bots/shared/ARCHITECTURE.md` | 섹션 4 (쓰레드 소유권) |
-| `docs/bots/mukgoorm/OVERVIEW.md` | 섹션 3 (온보딩) |
-
-### 미결 질문 (결정 필요)
+### 체크리스트
 
 ```
-[ ] 카테고리명은 무엇으로? ("먹구름 유저" / "먹구름봇" / 다른 이름)
-[ ] 유저 전용 채널명 형식: "#유저A-채팅창" / "#A의-먹구름" / 다른 형식
-[ ] 기존 2인 유저 마이그레이션: 기존 쓰레드를 유지할지, 채널 재생성 할지
-[ ] 캐릭터 상태 Embed는 전용 채널 상단에 고정 메시지로 남길지 여부
+[ ] Vite + React + TypeScript 초기화
+[ ] Supabase client 연결 (src/lib/supabase.ts)
+[ ] 환경변수 구성 (.env.local)
+[ ] react-router-dom 라우팅 구조
+[ ] 기본 레이아웃 (사이드바 + 메인 영역)
+[ ] Supabase Auth 이메일 로그인
+[ ] 온보딩 플로우 (유저 프로필 등록)
+```
+
+### 파일 구조 목표
+
+```
+mukgoorm-web/
+├── src/
+│   ├── components/
+│   │   ├── Layout.tsx
+│   │   ├── Sidebar.tsx
+│   │   └── CharacterCard.tsx
+│   ├── pages/
+│   │   ├── Home.tsx
+│   │   ├── Meal.tsx
+│   │   ├── Weight.tsx
+│   │   ├── Weather.tsx
+│   │   ├── Schedule.tsx
+│   │   ├── Diary.tsx
+│   │   ├── Email.tsx
+│   │   ├── Report.tsx
+│   │   └── Settings.tsx
+│   ├── lib/
+│   │   ├── supabase.ts
+│   │   ├── openai.ts
+│   │   └── n8n.ts
+│   └── hooks/
+│       ├── useUser.ts
+│       ├── useMeals.ts
+│       └── useCharacter.ts
+├── .env.local
+└── package.json
 ```
 
 ---
 
-## 항목 2 — 메인봇 UX 방식 ★★★
+## Phase 2 — 인증 + 핵심 기능
 
-### 현재 docs가 말하는 방식 (잘못됨)
+### 목표
+유저 인증 완성 + 식사·체중·날씨 핵심 기능 JavaScript 변환
 
-```
-메인 Embed (버튼 5개 허브)
-  Row 0: [🍽️ 식사 입력] [📋 하루 정리] [🍜 뭐 먹고 싶어?]
-  Row 1: [⚙️ 설정] [⚖️ 체중 기록]
+### Python → JavaScript 변환 대상
 
-유저 → 버튼 클릭 → Modal 팝업 → 기능 실행
-```
+| Python 파일 | JS 변환 대상 | 우선순위 |
+|------------|------------|---------|
+| `cogs/meal.py` | `src/lib/meal.ts` + `src/pages/Meal.tsx` | ★★★ |
+| `utils/nutrition.py` | `src/lib/nutrition.ts` (식약처 API) | ★★★ |
+| `cogs/weight.py` | `src/lib/weight.ts` + `src/pages/Weight.tsx` | ★★★ |
+| `cogs/weather.py` | `src/lib/weather.ts` + `src/pages/Weather.tsx` | ★★ |
+| `utils/image.py` | `src/lib/image.ts` (11종 이미지 선택 로직) | ★★ |
+| `utils/gpt.py` | `src/lib/openai.ts` (GPT 래퍼) | ★★★ |
+| `utils/db.py` | `src/lib/db.ts` (Supabase CRUD) | ★★★ |
 
-### 실제 의도하는 방식 (수정 목표)
-
-```
-유저 전용 채널에서 자유롭게 채팅 입력
-  "나 오늘 점심에 비빔밥 먹었어"
-    ↓ 메인봇 on_message 감지
-    ↓ ML/GPT 의도 분류 → 식사봇 트리거
-    ↓ 식사봇이 식사봇 쓰레드에 분석 결과 전송
-
-  "내일 오후 3시에 병원 예약 있어"
-    ↓ 메인봇 on_message 감지
-    ↓ ML/GPT 의도 분류 → 일정봇 트리거
-    ↓ 일정봇이 일정봇 쓰레드에 일정 등록
-```
-
-### 핵심 변경점
-
-1. **버튼 Embed 폐기**: `MainView` (버튼 5개) 방식 사용 중단
-2. **자연어 대화 방식**: 유저는 자신의 전용 채널에서 자유롭게 말함
-3. **메인봇 역할**: 버튼 허브 → 자연어 의도 파악 + 서브봇 라우팅 전담
-4. **메인 Embed**: 캐릭터 상태 표시 Embed는 유지하되, 버튼 없는 순수 상태 표시용으로 변경 (위치/형태 미결)
-
-### 영향 범위
-
-- `utils/embed.py` — `MainView` 버튼 5개 클래스 → 역할 축소 또는 폐기
-- `cogs/summary.py` — "하루 정리" 버튼 콜백 → 자연어 트리거로 전환
-- `cogs/weight.py` — "체중 기록" 버튼 → 자연어 트리거 또는 슬래시 커맨드로 전환
-- `cogs/meal.py` — "식사 입력" 버튼 → 자연어 감지로 전환
-
-### 수정 대상 파일
-
-| 파일 | 수정 섹션 |
-|------|---------|
-| `docs/02_FLOWS.md` | 식사 입력 흐름 (버튼→자연어), 체중 입력 흐름 |
-| `docs/bots/mukgoorm/OVERVIEW.md` | 섹션 2 (메인 Embed), 섹션 3 (온보딩 완료 후 팝업) |
-| `docs/bots/mukgoorm/ROADMAP.md` | Phase 1 (embed.py weight_button 처리) |
-| `docs/bots/shared/ARCHITECTURE.md` | 섹션 6 (봇 간 상태 공유 — 사진입력 흐름 변경) |
-| `docs/TEAM_OVERVIEW.md` | 섹션 9-2 (식사 입력 흐름) |
-
-### 미결 질문 (결정 필요)
+### 체크리스트
 
 ```
-[ ] 캐릭터 상태 Embed는 어떻게 표시? (채널 상단 고정? 자동 갱신 메시지?)
-[ ] 버튼 없이 "하루 정리 / 체중 기록"은 어떻게 트리거?
-    - 자연어: "오늘 하루 정리해줘" / "몸무게 기록할게"
-    - 슬래시 커맨드 유지: /하루정리, /체중기록
-    → 결정 필요
-[ ] 사진 식사 입력은? (현재 버튼 클릭 → DB 대기 상태 기록 흐름)
-    → 자연어 "사진으로 입력할게" 감지 후 DB 대기 상태 기록으로 변경
-[ ] 설정 변경은? (기존 설정 버튼 → 설정 SubView)
-    → 슬래시 커맨드 /설정 으로 전환하는 것이 자연스러움
+[ ] Supabase Auth RLS 정책 설정 (유저별 데이터 격리)
+[ ] useUser hook (유저 프로필 조회/수정)
+[ ] 식사 기록 — 텍스트 입력 + 식약처 API + GPT fallback
+[ ] 식사 기록 — 사진 입력 + GPT-4o-mini Vision
+[ ] 체중 기록 + 추이 그래프 (recharts)
+[ ] 날씨 — 기상청 API + 캐릭터 이미지 선택 로직
+[ ] 캐릭터 상태 — hp/hunger/mood → 이미지+대사 (핵심 원칙 유지)
+[ ] GPT 대사 생성 (openai.ts)
 ```
 
 ---
 
-## 항목 3 — 오케스트레이터 라우팅 방식 ★★
+## Phase 3 — 확장 기능
 
-### 현재 docs가 말하는 방식
+### 목표
+일정·일기·이메일 기능 웹앱 구현 (Python 봇에서 미구현이었던 기능들)
 
-```
-GPT 의도 분석 → task_queue DB 삽입 → 전문봇 30초 폴링
-(GPT만 사용, ML 언급 없음)
-```
-
-### 실제 의도하는 방식
+### 체크리스트
 
 ```
-1단계 (초기): GPT가 의도 분류 + 라우팅
-   유저 발화 → GPT → intent 라벨 (meal/diary/schedule/weight/none)
-
-2단계 (학습 후): ML이 의도 분류 → GPT는 엔티티 추출만
-   유저 발화 → ML 분류기 (학습된 패턴) → 빠른 라우팅
-            → GPT → 엔티티 추출 ("비빔밥", "내일 오후 3시" 등)
-
-핵심: ML이 "어느 봇으로 보낼지"를 학습 → GPT 호출 비용 절감 + 개인화
-```
-
-### 기술 구현 방향 (신규 문서화 필요)
-
-```
-학습 데이터 수집:
-  (message_text, intent_label, entity_json) → DB 저장
-  초기에는 GPT가 라벨링 → ML 학습 데이터로 축적
-
-ML 모델 (utils/intent_classifier.py 신규):
-  TF-IDF + LogisticRegression (또는 SVM)
-  입력: message_text
-  출력: intent (meal / diary / schedule / weight / none)
-  조건: 사용자별 50건+ 누적 시 개인화 모델 학습
-
-task_queue 방식 유지:
-  의도 분류 결과 → task_queue 테이블 삽입
-  전문봇들이 폴링하여 처리 (기존 설계 재사용)
-```
-
-### 수정 대상 파일
-
-| 파일 | 수정 내용 |
-|------|---------|
-| `docs/07_NEXT_FEATURES.md` | 오케스트레이터 섹션에 ML 의도 학습 추가 |
-| `docs/05_ML_MODULES.md` | 의도 분류 ML 모듈 (intent_classifier) 추가 |
-| `docs/bots/mukgoorm/ROADMAP.md` | Phase 4 오케스트레이터 ML 방식으로 업데이트 |
-
-### 필요한 신규 DB 테이블
-
-```sql
--- 의도 학습 데이터 (기존 task_queue와 별개)
-CREATE TABLE IF NOT EXISTS intent_log (
-  log_id      SERIAL PRIMARY KEY,
-  user_id     TEXT NOT NULL,
-  message     TEXT NOT NULL,           -- 유저 발화 원문
-  intent      TEXT NOT NULL,           -- 분류된 의도 (meal/diary/schedule/weight/none)
-  entity_json TEXT,                    -- GPT 추출 엔티티 {"food": "비빔밥", "meal_type": "점심"}
-  classified_by TEXT DEFAULT 'gpt',   -- 'gpt' | 'ml'
-  created_at  TIMESTAMP DEFAULT NOW()
-);
+[ ] 일정 — 등록·목록·삭제 (schedules 테이블 재활용)
+[ ] 일정 — 브라우저 Notification API 알림
+[ ] 일기 — 작성 + GPT-4o-mini 감정 분석
+[ ] 일기 — 주간 감정 추이 차트 (recharts)
+[ ] 이메일 모니터링 — n8n IMAP 폴링 → Supabase Realtime 연동
+[ ] 이메일 — 발신자 관리 (화이트리스트)
 ```
 
 ---
 
-## 항목 4 — 미구현 봇 상태 표기 ★★
+## Phase 4 — n8n 연동
 
-### 현재 docs의 잘못된 표기
+### 목표
+ML 파이프라인 + 음식 추천 + 이메일 자동화 n8n 연결
 
-| 봇 | 현재 docs 표기 | 실제 상태 |
-|----|---------------|---------|
-| `bot_diary.py` | "설계 완료, 구현 예정" | 구상 단계 — UX/흐름 미결 |
-| `bot_schedule.py` | "설계 완료, 구현 예정" | 구상 단계 — UX/흐름 미결 |
-| `bot_weight.py` | "skeleton" | 기존 기능 그대로 분리 후 점진적 확장 예정 |
-
-### 정확한 상태로 수정
+### 체크리스트
 
 ```
-bot_diary.py    → 📋 구상 단계 (UX 미결, 코드 없음)
-bot_schedule.py → 📋 구상 단계 (UX 미결, 코드 없음)
-bot_weight.py   → 🔄 분리 예정 (기능 추가 없이 cogs.weight 이전 후 점진적 확장)
+[ ] n8n 음식 추천 웹훅 URL 수령 + 환경변수 등록
+[ ] src/lib/n8n.ts — 음식 추천 요청 함수
+[ ] 음식 추천 UI (잔여 칼로리 기반 버튼 또는 자동 제안)
+[ ] ML 의도 분류 파이프라인 n8n 연결
+    ─ GPT 라벨링 → intent_log 저장 (데이터 축적)
+    ─ 50건+ 누적 시 ML 모델 전환
+[ ] 이메일 모니터링 n8n 워크플로우 연결
 ```
-
-### 수정 대상 파일
-
-| 파일 | 수정 내용 |
-|------|---------|
-| `docs/07_NEXT_FEATURES.md` | Phase 4/5 상태를 "설계 완료"→"구상 단계"로 수정 |
-| `docs/PRODUCTION_ROADMAP.md` | Phase 5/6 상태 수정 |
-| `docs/TEAM_OVERVIEW.md` | 섹션 14 로드맵에서 diary/schedule 상태 수정 |
-| `docs/bots/diary/OVERVIEW.md` | 상태 표기 수정 |
-| `docs/bots/diary/ROADMAP.md` | 상태 표기 수정 |
-| `docs/bots/schedule/OVERVIEW.md` | 상태 표기 수정 |
-| `docs/bots/schedule/ROADMAP.md` | 상태 표기 수정 |
 
 ---
 
-## 항목 5 — n8n 연동 상태 ★
+## Phase 5 — 알림 · 주간 리포트
 
-### 현재 docs
+### 목표
+주간 리포트 CSS 뷰 + Discord Webhook + 이메일 발송
 
-```
-"n8n 팀원이 웹훅 URL 확정 후 연동" (미결)
-```
-
-### 실제 상태
+### 체크리스트
 
 ```
-이미 n8n 워크플로우 구성됨.
-봇에서 웹훅 URL을 발급·연결하면 즉시 사용 가능.
-팀원 확정이 아닌 "웹훅 URL 수령 후 N8N_FOOD_WEBHOOK_URL 등록"으로 수정.
+[ ] 주간 리포트 페이지 (/report) — CSS 풀 커스텀
+    ─ 주간 칼로리 차트
+    ─ 체중 변화
+    ─ 감정 추이
+    ─ 스트릭 + 배지 7종
+[ ] Discord Webhook 발송 (src/lib/discord.ts)
+[ ] 이메일 발송 옵션 (n8n SMTP 워크플로우)
+[ ] 브라우저 Push 알림 (PWA Service Worker)
 ```
-
-### 수정 대상 파일
-
-| 파일 | 수정 내용 |
-|------|---------|
-| `docs/07_NEXT_FEATURES.md` | Phase 3 n8n 전제조건 "팀원 확정" → "웹훅 URL 수령 후 등록" |
-| `docs/PRODUCTION_ROADMAP.md` | Phase 4 체크리스트 수정 |
 
 ---
 
-## 항목 6 — 위치 정보 수집 ★
-
-### 현재 docs
+## Phase 6 — 마무리 (선택)
 
 ```
-"address 필드 추가 여부 미결 (권장 옵션 B)" — 결정되지 않은 것으로 표기
+[ ] PWA 설정 (manifest.json, service worker)
+    ─ 모바일 홈 화면 추가 가능
+    ─ 오프라인 기본 지원
+[ ] Electron 패키징 (exe 데스크톱 앱)
+    ─ 백그라운드 실행
+    ─ OS 네이티브 알림
+    ─ 시스템 트레이
 ```
-
-### 실제 의도
-
-```
-채널 구조 변경 단계(온보딩 재설계)와 함께 동 단위 주소 추가로 확정.
-  - city     : 날씨 API용 (시 단위, 기존 유지)
-  - address  : 음식 추천용 (동 단위, 온보딩 시 신규 수집)
-```
-
-### 수정 대상 파일
-
-| 파일 | 수정 내용 |
-|------|---------|
-| `docs/07_NEXT_FEATURES.md` | address 필드 "미결"→"확정" 으로 수정, 온보딩 연동 명시 |
-| `docs/03_DATABASE.md` | users 테이블에 address 컬럼 추가 |
 
 ---
 
-## 항목 7 — 유저 규모 ★
+## 레거시 Python 봇 처리
 
-### 현재 docs
-
-```
-유저 규모 관련 내용 없음.
-```
-
-### 실제 상태 및 목표
-
-```
-현재: 2인 프라이빗 서버에서 개발/운영 중
-목표: 최대 20인 소규모 서버에서 운영 가능하도록 설계
-
-영향 사항:
-  - 유저별 전용 채널 생성 → 20명 × 6~7 쓰레드 = 약 130개 채널/쓰레드
-    Discord 서버당 채널 한도: 500개 → 여유 있음
-  - Supabase 동시 연결: 7개 봇 × (최대 연결 수) → 커넥션 풀 모니터링 필요
-  - API 비용: 20명 × GPT 호출 빈도 → 월 비용 예측 필요
-```
-
-### 수정 대상 파일
-
-| 파일 | 수정 내용 |
-|------|---------|
-| `docs/01_OVERVIEW.md` | 유저 규모 및 설계 기준 항목 추가 |
-| `docs/PRODUCTION_ROADMAP.md` | 20인 기준 인프라 고려사항 추가 |
+| 시점 | 처리 방법 |
+|------|----------|
+| 웹앱 Phase 2 완료 | Python 봇 `develop` 브랜치 보존, 신규 개발 중단 |
+| 웹앱 Phase 5 완료 | Python 봇 아카이브 태그 (`v3.2-legacy`) 추가 |
+| 웹앱 안정화 | Python 봇 README에 "deprecated" 표기 |
 
 ---
 
-## 전체 수정 파일 목록
-
-아래 파일들을 순서대로 수정해야 한다.
-
-### 1순위 (구조 변경 핵심)
-
-- [ ] `docs/01_OVERVIEW.md` — 채널 구조, 유저 규모 추가
-- [ ] `docs/02_FLOWS.md` — 온보딩/식사/체중 흐름 전면 수정
-- [ ] `docs/bots/shared/ARCHITECTURE.md` — 채널 구조, 쓰레드 소유권
-- [ ] `docs/bots/mukgoorm/OVERVIEW.md` — 메인봇 역할 (버튼→자연어)
-- [ ] `docs/bots/mukgoorm/ROADMAP.md` — 오케스트레이터 ML 방식 추가
-
-### 2순위 (설계 반영)
-
-- [ ] `docs/07_NEXT_FEATURES.md` — 채널 구조, n8n 상태, address 확정, 미구현봇 상태
-- [ ] `docs/PRODUCTION_ROADMAP.md` — 채널 구조, 20인 인프라, n8n, 미구현봇 상태
-- [ ] `docs/TEAM_OVERVIEW.md` — 채널 구조, 미구현봇 상태, 메인봇 UX
-
-### 3순위 (세부 문서)
-
-- [ ] `docs/03_DATABASE.md` — address 컬럼, personal_channel_id 컬럼, intent_log 테이블
-- [ ] `docs/05_ML_MODULES.md` — 의도 분류 ML 모듈 추가
-- [ ] `docs/bots/diary/OVERVIEW.md` — 상태 표기 수정
-- [ ] `docs/bots/diary/ROADMAP.md` — 상태 표기 수정
-- [ ] `docs/bots/schedule/OVERVIEW.md` — 상태 표기 수정
-- [ ] `docs/bots/schedule/ROADMAP.md` — 상태 표기 수정
-
----
-
-## 결정이 필요한 미결 사항 목록
-
-아래 항목들은 수정 전 확인이 필요하다.
-
-### 채널 구조 관련
+## 미결 사항
 
 ```
-[ ] A. 카테고리명: "먹구름 유저" / "Bot Channels" / 다른 이름?
-[ ] B. 유저 전용 채널 이름 형식: "#유저A-채팅창" / "#A의-먹구름" / 다른?
-[ ] C. 기존 2인 유저 마이그레이션 방식:
-        (1) 기존 쓰레드 유지 + fallback 계속 사용
-        (2) 전용 채널 새로 생성 + 기존 쓰레드 아카이브
-[ ] D. 채널 권한: 유저A가 유저B 채널 조회 불가 설정 여부
-```
-
-### 메인봇 UX 관련
-
-```
-[ ] E. 캐릭터 상태 Embed 표시 방식:
-        (1) 전용 채널 상단 고정 메시지 (pin)
-        (2) 채팅 중 자동 갱신 메시지
-        (3) 별도 쓰레드 유지
-[ ] F. 버튼 없는 대체 UX:
-        - "하루 정리" → 자연어 "오늘 정리해줘" / 슬래시 커맨드?
-        - "체중 기록" → 자연어 "몸무게 기록" / 슬래시 커맨드?
-        - "설정" → 슬래시 커맨드 /설정?
-[ ] G. 사진 식사 입력: "사진으로 입력할게" 자연어 감지로 대체?
-```
-
-### 오케스트레이터 관련
-
-```
-[ ] H. ML 의도 학습 시작 시점: v4.0 함께 / 또는 v3.x 단계에서 데이터 수집 시작?
-[ ] I. GPT→ML 전환 조건: 유저별 몇 건 누적 시 ML로 전환?
+[ ] Supabase RLS 정책 설계 (어느 테이블에 어떤 정책?)
+[ ] NovelAI 이미지 생성 서버사이드 처리
+    → Supabase Edge Function 또는 n8n 워크플로우
+[ ] 네이버 IMAP 서버사이드 처리 위치
+    → n8n 권장 (IMAP은 브라우저에서 직접 접근 불가)
+[ ] Discord Webhook URL 수령
+[ ] n8n 서버 위치 (로컬 vs 클라우드 n8n)
 ```
