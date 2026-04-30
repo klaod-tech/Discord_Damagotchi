@@ -52,7 +52,8 @@ export default function Onboarding() {
       })
       navigate('/')
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : '오류가 발생했어요.')
+      console.error(e)
+      setError(e instanceof Error ? e.message : JSON.stringify(e))
     } finally {
       setLoading(false)
     }
