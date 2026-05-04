@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useUser } from '../hooks/useUser'
 import { selectCharacterImage } from '../lib/image'
-import { analyzeIntent } from '../lib/intent'
-import { recordMeal } from '../lib/meal'
+import { sendToN8N } from '../lib/n8n'
 import { supabase } from '../lib/supabase'
 
 interface Message {
@@ -20,12 +19,16 @@ interface Tamagotchi {
 export default function Home() {
   const { user, profile } = useUser()
   const [tamagotchi, setTamagotchi] = useState<Tamagotchi | null>(null)
-  const [messages, setMessages] = useState<Message[]>([
-    { id: 0, role: 'bot', text: `안녕! 나 ${profile?.tamagotchi_name ?? '먹구름'}이야 🌧️ 오늘 뭐 먹었어?` },
-  ])
+  const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (profile) {
+      setMessages([{ id: 0, role: 'bot', text: `안녕! 나 ${profile.tamagotchi_name}이야 🌧️ 오늘 뭐 먹었어?` }])
+    }
+  }, [profile?.tamagotchi_name])
 
   useEffect(() => {
     if (!user) return
@@ -37,49 +40,26 @@ export default function Home() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  useEffect(() => {
-    if (profile) {
-      setMessages([{ id: 0, role: 'bot', text: `안녕! 나 ${profile.tamagotchi_name}이야 🌧️ 오늘 뭐 먹었어?` }])
-    }
-  }, [profile?.tamagotchi_name])
-
   const characterImage = tamagotchi
     ? selectCharacterImage('none', tamagotchi.hunger, tamagotchi.mood, tamagotchi.hp)
     : '/normal.png'
 
   async function handleSend() {
-    if (!input.trim() || loading || !profile) return
+    if (!input.trim() || loading || !user || !profile) return
     const userMsg = input.trim()
     setInput('')
     setMessages(prev => [...prev, { id: Date.now(), role: 'user', text: userMsg }])
     setLoading(true)
 
     try {
-      const result = await analyzeIntent(userMsg, profile.tamagotchi_name)
-      setMessages(prev => [...prev, { id: Date.now() + 1, role: 'bot', text: result.reply }])
+      const reply = await sendToN8N(user.id, userMsg)
+      setMessages(prev => [...prev, { id: Date.now() + 1, role: 'bot', text: reply || '응? 다시 말해줘 😅' }])
 
-      // 의도별 후속 처리
-      if (result.intent === 'meal' && user) {
-        const mealResult = await recordMeal(user.id, userMsg, result.entities?.meal_type ?? 'unknown')
-        if (mealResult) {
-          setMessages(prev => [...prev, {
-            id: Date.now() + 2, role: 'bot',
-            text: `${mealResult.foodName} 기록했어! 약 ${mealResult.totalCalories}kcal 🍽️`
-          }])
-          // 타마고치 상태 새로고침
-          const { data } = await supabase.from('tamagotchi').select('*').eq('user_id', user.id).maybeSingle()
-          if (data) setTamagotchi(data)
-        }
-      } else if (result.intent === 'weight') {
-        setTimeout(() => {
-          setMessages(prev => [...prev, {
-            id: Date.now() + 2, role: 'bot',
-            text: '체중은 왼쪽 ⚖️ 체중 관리에서 기록할 수 있어!'
-          }])
-        }, 600)
-      }
+      // 타마고치 상태 갱신 (n8n이 DB 업데이트한 후)
+      supabase.from('tamagotchi').select('*').eq('user_id', user.id).maybeSingle()
+        .then(({ data }) => { if (data) setTamagotchi(data) })
     } catch {
-      setMessages(prev => [...prev, { id: Date.now() + 1, role: 'bot', text: '앗, 잠깐 문제가 생겼어 😥 다시 말해줘!' }])
+      setMessages(prev => [...prev, { id: Date.now() + 1, role: 'bot', text: 'n8n 연결을 확인해줘 😥' }])
     } finally {
       setLoading(false)
     }
@@ -90,15 +70,11 @@ export default function Home() {
 
       {/* 캐릭터 영역 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '20px 0 12px' }}>
-        <img
-          src={characterImage}
-          alt="캐릭터"
-          style={{ width: 100, height: 100, objectFit: 'contain', imageRendering: 'pixelated', flexShrink: 0 }}
-        />
+        <img src={characterImage} alt="캐릭터" style={{ width: 100, height: 100, objectFit: 'contain', imageRendering: 'pixelated', flexShrink: 0 }} />
         <div>
           <div style={{ color: '#aaa', fontSize: 13 }}>{profile?.tamagotchi_name}의 오늘</div>
           <div style={{ color: '#fff', fontSize: 15, marginTop: 4 }}>
-            {loading ? '...' : '뭐든지 말해봐! 기록해줄게 🌧️'}
+            {loading ? '생각 중...' : '뭐든지 말해봐! 기록해줄게 🌧️'}
           </div>
         </div>
       </div>
@@ -116,7 +92,8 @@ export default function Home() {
               background: msg.role === 'user' ? '#6c63ff' : '#1a1a2e',
               color: '#fff',
               fontSize: 14,
-              lineHeight: 1.5,
+              lineHeight: 1.6,
+              whiteSpace: 'pre-wrap',
             }}>
               {msg.text}
             </div>
@@ -124,9 +101,7 @@ export default function Home() {
         ))}
         {loading && (
           <div style={{ display: 'flex' }}>
-            <div style={{ padding: '10px 14px', borderRadius: '16px 16px 16px 4px', background: '#1a1a2e', color: '#666', fontSize: 14 }}>
-              ···
-            </div>
+            <div style={{ padding: '10px 16px', borderRadius: '16px 16px 16px 4px', background: '#1a1a2e', color: '#666', fontSize: 18 }}>···</div>
           </div>
         )}
         <div ref={bottomRef} />
