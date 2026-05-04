@@ -1,5 +1,22 @@
+# Python
 __pycache__/
 *.pyc
+*.pyo
+
+# 환경변수 (절대 커밋 금지)
 .env
-damagotchi.db
+.env.local
+.env.*.local
+
+# DB
 tamagotchi.db
+damagotchi.db
+
+# Node
+web/node_modules/
+web/dist/
+web/.env.local
+
+# 에디터
+.DS_Store
+Thumbs.db
