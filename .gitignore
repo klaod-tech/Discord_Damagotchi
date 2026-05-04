@@ -17,6 +17,9 @@ web/node_modules/
 web/dist/
 web/.env.local
 
+# PPT / 발표 자료
+ppt/
+
 # 에디터
 .DS_Store
 Thumbs.db
