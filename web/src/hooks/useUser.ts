@@ -7,16 +7,23 @@ export interface UserProfile {
   user_id: string
   tamagotchi_name: string
   city: string
-  address?: string
+  village?: string
   gender?: string
   age?: number
   height?: number
+  init_weight?: number
   goal_weight?: number
   daily_cal_target?: number
   wake_time?: string
   breakfast_time?: string
   lunch_time?: string
   dinner_time?: string
+  snack_time?: string
+  allergies?: string[]
+  food_preferences?: string[]
+  email_provider?: string
+  email_address?: string
+  email_app_pw?: string
   streak?: number
   max_streak?: number
   badges?: string
@@ -54,28 +61,25 @@ export function useUser() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('[useUser] auth event:', event, session?.user?.id)
         if (!mounted) return
 
         const authUser = session?.user ?? null
         setUser(authUser)
 
         if (authUser) {
-          // 캐시 없을 때만 DB 조회
           const cached = getCachedProfile()
           if (cached && cached.user_id === authUser.id) {
             setProfile(cached)
             clearTimeout(safetyTimer)
             if (mounted) setLoading(false)
-            // 백그라운드에서 최신 데이터 갱신
             getUserProfile(authUser.id)
-              .then(p => { if (p && mounted) { setProfile(p); setCachedProfile(p) } })
+              .then(p => { if (p && mounted) { setProfile(p as UserProfile); setCachedProfile(p as UserProfile) } })
               .catch(() => {})
           } else {
             const p = await getUserProfile(authUser.id).catch(() => null)
             if (!mounted) return
-            setProfile(p)
-            setCachedProfile(p)
+            setProfile(p as UserProfile | null)
+            setCachedProfile(p as UserProfile | null)
             clearTimeout(safetyTimer)
             if (mounted) setLoading(false)
           }

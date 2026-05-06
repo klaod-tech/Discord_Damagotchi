@@ -11,7 +11,16 @@
       "Bash(python -c \"import ast; ast.parse\\(open\\('cogs/settings.py'\\).read\\(\\)\\); print\\('settings.py OK'\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\('utils/embed.py', encoding='utf-8'\\).read\\(\\)\\); print\\('embed.py OK'\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\('cogs/settings.py', encoding='utf-8'\\).read\\(\\)\\); print\\('settings.py OK'\\)\")",
-      "Bash(python -c ':*)"
+      "Bash(python -c ':*)",
+      "Bash(node create_mukgoorm_ppt.js)",
+      "Bash(npm list *)",
+      "Bash(node -e \"require\\('pptxgenjs'\\); console.log\\('ok'\\)\")",
+      "Bash(npm root *)",
+      "Bash(NODE_PATH=\"C:/Users/dai52/AppData/Roaming/npm/node_modules\" node create_mukgoorm_ppt.js)",
+      "Bash(python C:/Users/dai52/AppData/Roaming/Claude/local-agent-mode-sessions/skills-plugin/6ea8fe72-245e-475e-a829-5c706776ee7f/f2850c9a-13b1-46fb-9e50-20ae46b3277c/skills/pptx/scripts/office/soffice.py --headless --convert-to pdf 먹구름_AI비서_발표.pptx)",
+      "Bash(where soffice *)",
+      "Bash(where soffice.exe)",
+      "Read(//c/Program Files/LibreOffice/program/**)"
     ]
   }
 }

@@ -22,6 +22,7 @@ export default function Sidebar() {
       display: 'flex',
       flexDirection: 'column',
       gap: 4,
+      flexShrink: 0,
     }}>
       <div style={{ color: '#fff', fontWeight: 700, fontSize: 18, padding: '0 20px 24px' }}>
         🌧️ 먹구름
@@ -41,6 +42,7 @@ export default function Sidebar() {
             textDecoration: 'none',
             borderLeft: isActive ? '3px solid #6c63ff' : '3px solid transparent',
             fontSize: 14,
+            transition: 'background 0.15s, color 0.15s',
           })}
         >
           <span>{icon}</span>

@@ -17,6 +17,7 @@ export async function createUserProfile(profile: {
   gender: string
   age: number
   height: number
+  init_weight: number
   goal_weight: number
   allergies: string[]
   food_preferences: string[]
@@ -24,7 +25,7 @@ export async function createUserProfile(profile: {
   breakfast_time: string
   lunch_time: string
   dinner_time: string
-  snack_time: string
+  snack_time?: string
   email_provider?: string
   email_address?: string
   email_app_pw?: string

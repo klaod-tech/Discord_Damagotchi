@@ -18,6 +18,7 @@ export default function Onboarding() {
     gender: '',
     age: '',
     height: '',
+    init_weight: '',
     goal_weight: '',
     allergies: [] as string[],
     food_preferences: [] as string[],
@@ -25,7 +26,7 @@ export default function Onboarding() {
     breakfast_time: '08:00',
     lunch_time: '12:00',
     dinner_time: '19:00',
-    snack_time: '15:00',
+    snack_time: '',
     email_provider: '네이버',
     email_address: '',
     email_app_pw: '',
@@ -59,6 +60,7 @@ export default function Onboarding() {
         gender: form.gender,
         age: Number(form.age),
         height: Number(form.height),
+        init_weight: Number(form.init_weight),
         goal_weight: Number(form.goal_weight),
         allergies: form.allergies,
         food_preferences: form.food_preferences,
@@ -66,10 +68,10 @@ export default function Onboarding() {
         breakfast_time: form.breakfast_time,
         lunch_time: form.lunch_time,
         dinner_time: form.dinner_time,
-        snack_time: form.snack_time,
+        snack_time: form.snack_time || undefined,
         email_provider: form.email_provider,
-        email_address: form.email_address,
-        email_app_pw: form.email_app_pw,
+        email_address: form.email_address || undefined,
+        email_app_pw: form.email_app_pw || undefined,
       })
       navigate('/')
     } catch (e: unknown) {
@@ -84,7 +86,7 @@ export default function Onboarding() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#0f0f23', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ background: '#1a1a2e', borderRadius: 16, padding: 40, width: 420, display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ background: '#1a1a2e', borderRadius: 16, padding: 40, width: 440, display: 'flex', flexDirection: 'column', gap: 24 }}>
 
         {/* 진행 바 */}
         <div style={{ display: 'flex', gap: 6 }}>
@@ -104,7 +106,6 @@ export default function Onboarding() {
           <p style={{ color: '#aaa', margin: 0, fontSize: 13 }}>{STEPS[step]} 단계 ({step + 1}/{STEPS.length})</p>
         </div>
 
-        {/* 단계별 입력 */}
         {step === 0 && (
           <input
             placeholder="캐릭터 이름 (예: 뭉치)"
@@ -118,18 +119,22 @@ export default function Onboarding() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <input placeholder="도시 (예: 서울)" value={form.city} onChange={e => set('city', e.target.value)} style={inputStyle} />
             <input placeholder="동 단위 주소 (예: 역삼동)" value={form.village} onChange={e => set('village', e.target.value)} style={inputStyle} />
-            <p style={{ color: '#888', fontSize: 12, margin: 0 }}>도시는 날씨, 동 주소는 음식 추천에 사용돼요.</p>
+            <p style={{ color: '#888', fontSize: 12, margin: 0 }}>도시는 날씨, 동 주소는 맛집 추천에 사용돼요. 맛집 추천 시 별도 장소를 말하지 않으면 여기 기준으로 찾아줘요.</p>
           </div>
         )}
 
         {step === 2 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => set('gender', 'male')} style={{ ...genderBtn, background: form.gender === 'male' ? '#6c63ff' : '#16213e' }}>남성</button>
-              <button onClick={() => set('gender', 'female')} style={{ ...genderBtn, background: form.gender === 'female' ? '#6c63ff' : '#16213e' }}>여성</button>
+            <div>
+              <p style={{ color: '#aaa', fontSize: 13, margin: '0 0 8px' }}>성별</p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => set('gender', 'male')} style={{ ...genderBtn, flex: 1, background: form.gender === 'male' ? '#6c63ff' : '#16213e' }}>남성</button>
+                <button onClick={() => set('gender', 'female')} style={{ ...genderBtn, flex: 1, background: form.gender === 'female' ? '#6c63ff' : '#16213e' }}>여성</button>
+              </div>
             </div>
             <input placeholder="나이" type="number" value={form.age} onChange={e => set('age', e.target.value)} style={inputStyle} />
             <input placeholder="키 (cm)" type="number" value={form.height} onChange={e => set('height', e.target.value)} style={inputStyle} />
+            <input placeholder="현재 체중 (kg)" type="number" value={form.init_weight} onChange={e => set('init_weight', e.target.value)} style={inputStyle} />
             <input placeholder="목표 체중 (kg)" type="number" value={form.goal_weight} onChange={e => set('goal_weight', e.target.value)} style={inputStyle} />
 
             <div>
@@ -155,17 +160,32 @@ export default function Onboarding() {
         {step === 3 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {[
-              { label: '기상 시간', key: 'wake_time' },
-              { label: '아침 식사', key: 'breakfast_time' },
-              { label: '점심 식사', key: 'lunch_time' },
-              { label: '저녁 식사', key: 'dinner_time' },
-              { label: '간식 시간', key: 'snack_time' },
-            ].map(({ label, key }) => (
+              { label: '기상 시간', key: 'wake_time', required: true },
+              { label: '아침 식사', key: 'breakfast_time', required: true },
+              { label: '점심 식사', key: 'lunch_time', required: true },
+              { label: '저녁 식사', key: 'dinner_time', required: true },
+              { label: '간식 시간', key: 'snack_time', required: false },
+            ].map(({ label, key, required }) => (
               <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ color: '#aaa', fontSize: 13, width: 80 }}>{label}</span>
-                <input type="time" value={form[key as keyof typeof form] as string} onChange={e => set(key, e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                <span style={{ color: '#aaa', fontSize: 13, width: 90, flexShrink: 0 }}>
+                  {label}
+                  {!required && <span style={{ color: '#555', fontSize: 11, marginLeft: 4 }}>(선택)</span>}
+                </span>
+                <input
+                  type="time"
+                  value={form[key as keyof typeof form] as string}
+                  onChange={e => set(key, e.target.value)}
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+                {!required && form[key as keyof typeof form] && (
+                  <button
+                    onClick={() => set(key, '')}
+                    style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', fontSize: 16, padding: '0 4px' }}
+                  >✕</button>
+                )}
               </div>
             ))}
+            <p style={{ color: '#555', fontSize: 12, margin: 0 }}>간식 시간은 식사 타입 분류에 사용돼요. 없으면 건너뛰어도 돼요.</p>
           </div>
         )}
 
