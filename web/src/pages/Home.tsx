@@ -616,12 +616,12 @@ function MenuPanel({
 
   return (
     <div style={{
-      position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
+      position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
       width: 'min(680px, 96vw)',
       background: 'var(--surface)', border: '1px solid var(--border)',
-      borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
+      borderRadius: 'var(--radius-lg)',
       boxShadow: 'var(--shadow-lg)',
-      zIndex: 50, maxHeight: '55vh', display: 'flex', flexDirection: 'column',
+      zIndex: 50, maxHeight: '70vh', display: 'flex', flexDirection: 'column',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 'var(--sp-4) var(--sp-5)', borderBottom: '1px solid var(--border)' }}>
         <div>
