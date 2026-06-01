@@ -106,7 +106,13 @@ function loadCharGenCache(): { evoState: EvoState; charGen: CharacterGen | null;
 
 function saveCharGenCache(userId: string, evoState: EvoState, charGen: CharacterGen | null) {
   try {
-    localStorage.setItem(CHAR_GEN_CACHE_KEY, JSON.stringify({ userId, evoState, charGen }))
+    let tamagotchi = null
+    const existing = localStorage.getItem(CHAR_GEN_CACHE_KEY)
+    if (existing) {
+      const parsed = JSON.parse(existing)
+      if (parsed.userId === userId) tamagotchi = parsed.tamagotchi ?? null
+    }
+    localStorage.setItem(CHAR_GEN_CACHE_KEY, JSON.stringify({ userId, evoState, charGen, tamagotchi }))
   } catch {}
 }
 
