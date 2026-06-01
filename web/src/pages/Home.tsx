@@ -93,14 +93,14 @@ type EvoState = 'checking' | 'no_worldcup' | 'cube' | 'evolved'
 const CHAT_KEY = 'mukgoorm_chat'
 const CHAR_GEN_CACHE_KEY = 'mukgoorm_chargen'
 
-function loadCharGenCache(): { evoState: EvoState; charGen: CharacterGen | null } {
+function loadCharGenCache(): { evoState: EvoState; charGen: CharacterGen | null; tamagotchi: Tamagotchi | null } {
   try {
     const raw = localStorage.getItem(CHAR_GEN_CACHE_KEY)
-    if (!raw) return { evoState: 'checking', charGen: null }
-    const { evoState, charGen } = JSON.parse(raw)
-    return { evoState: evoState ?? 'checking', charGen: charGen ?? null }
+    if (!raw) return { evoState: 'checking', charGen: null, tamagotchi: null }
+    const { evoState, charGen, tamagotchi } = JSON.parse(raw)
+    return { evoState: evoState ?? 'checking', charGen: charGen ?? null, tamagotchi: tamagotchi ?? null }
   } catch {
-    return { evoState: 'checking', charGen: null }
+    return { evoState: 'checking', charGen: null, tamagotchi: null }
   }
 }
 
@@ -108,6 +108,12 @@ function saveCharGenCache(userId: string, evoState: EvoState, charGen: Character
   try {
     localStorage.setItem(CHAR_GEN_CACHE_KEY, JSON.stringify({ userId, evoState, charGen }))
   } catch {}
+}
+
+function preloadCharGenImages(gen: CharacterGen) {
+  [gen.normal_url, gen.happy_url, gen.tired_url, gen.eating_url]
+    .filter(Boolean)
+    .forEach(url => { new Image().src = url! })
 }
 
 function loadCachedMessages(): Message[] {
@@ -121,7 +127,7 @@ function loadCachedMessages(): Message[] {
 
 export default function Home() {
   const { user, profile } = useUser()
-  const [tamagotchi, setTamagotchi] = useState<Tamagotchi | null>(null)
+  const [tamagotchi, setTamagotchi] = useState<Tamagotchi | null>(() => loadCharGenCache().tamagotchi)
   const [messages, setMessages] = useState<Message[]>(loadCachedMessages)
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -194,6 +200,22 @@ export default function Home() {
     const t = setInterval(() => setElapsed(s => s + 1), 1000)
     return () => clearInterval(t)
   }, [loading])
+
+  useEffect(() => {
+    if (!user || !tamagotchi) return
+    try {
+      const raw = localStorage.getItem(CHAR_GEN_CACHE_KEY)
+      if (!raw) return
+      const cache = JSON.parse(raw)
+      if (cache.userId === user.id) {
+        localStorage.setItem(CHAR_GEN_CACHE_KEY, JSON.stringify({ ...cache, tamagotchi }))
+      }
+    } catch {}
+  }, [tamagotchi, user])
+
+  useEffect(() => {
+    if (charGen) preloadCharGenImages(charGen)
+  }, [charGen])
 
   const characterImage = (() => {
     if (evoState === 'checking') return '/cube.png'
