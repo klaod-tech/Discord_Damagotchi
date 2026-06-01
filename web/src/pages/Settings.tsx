@@ -106,6 +106,7 @@ export default function Settings() {
 
       await supabase.auth.signOut({ scope: 'local' })
       sessionStorage.removeItem('mukgoorm_profile')
+      localStorage.removeItem('mukgoorm_chargen')
 
       const { error: delError } = await supabase
         .from('users')
@@ -271,6 +272,7 @@ export default function Settings() {
             <button
               onClick={async () => {
                 sessionStorage.removeItem('mukgoorm_profile')
+                localStorage.removeItem('mukgoorm_chargen')
                 await supabase.auth.signOut()
                 navigate('/login')
               }}

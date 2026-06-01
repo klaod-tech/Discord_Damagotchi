@@ -91,6 +91,24 @@ function getMealType(profile: {
 type EvoState = 'checking' | 'no_worldcup' | 'cube' | 'evolved'
 
 const CHAT_KEY = 'mukgoorm_chat'
+const CHAR_GEN_CACHE_KEY = 'mukgoorm_chargen'
+
+function loadCharGenCache(): { evoState: EvoState; charGen: CharacterGen | null } {
+  try {
+    const raw = localStorage.getItem(CHAR_GEN_CACHE_KEY)
+    if (!raw) return { evoState: 'checking', charGen: null }
+    const { evoState, charGen } = JSON.parse(raw)
+    return { evoState: evoState ?? 'checking', charGen: charGen ?? null }
+  } catch {
+    return { evoState: 'checking', charGen: null }
+  }
+}
+
+function saveCharGenCache(userId: string, evoState: EvoState, charGen: CharacterGen | null) {
+  try {
+    localStorage.setItem(CHAR_GEN_CACHE_KEY, JSON.stringify({ userId, evoState, charGen }))
+  } catch {}
+}
 
 function loadCachedMessages(): Message[] {
   try {
@@ -111,8 +129,8 @@ export default function Home() {
   const [showDiaryModal, setShowDiaryModal] = useState(false)
   const [pendingDiary, setPendingDiary] = useState<PendingDiaryUpdate | null>(null)
   const [menuState, setMenuState] = useState<MenuState | null>(null)
-  const [evoState, setEvoState] = useState<EvoState>('checking')
-  const [charGen, setCharGen] = useState<CharacterGen | null>(null)
+  const [evoState, setEvoState] = useState<EvoState>(() => loadCharGenCache().evoState)
+  const [charGen, setCharGen] = useState<CharacterGen | null>(() => loadCharGenCache().charGen)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -132,6 +150,18 @@ export default function Home() {
     computeTamagotchiStats(user.id).then(setTamagotchi)
 
     ;(async () => {
+      try {
+        const raw = localStorage.getItem(CHAR_GEN_CACHE_KEY)
+        if (raw) {
+          const { userId } = JSON.parse(raw)
+          if (userId !== user.id) {
+            setEvoState('checking')
+            setCharGen(null)
+            localStorage.removeItem(CHAR_GEN_CACHE_KEY)
+          }
+        }
+      } catch {}
+
       const { data: session } = await supabase
         .from('worldcup_sessions')
         .select('created_at')
@@ -141,16 +171,17 @@ export default function Home() {
         .limit(1)
         .maybeSingle()
 
-      if (!session) { setEvoState('no_worldcup'); return }
+      if (!session) {
+        setEvoState('no_worldcup')
+        saveCharGenCache(user.id, 'no_worldcup', null)
+        return
+      }
 
       const gen = await getCharacterGen(user.id)
       setCharGen(gen)
-
-      if (gen?.status === 'done') {
-        setEvoState('evolved')
-      } else {
-        setEvoState('cube')
-      }
+      const newEvoState: EvoState = gen?.status === 'done' ? 'evolved' : 'cube'
+      setEvoState(newEvoState)
+      saveCharGenCache(user.id, newEvoState, gen)
     })()
   }, [user])
 
