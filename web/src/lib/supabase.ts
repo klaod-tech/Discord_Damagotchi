@@ -7,6 +7,4 @@ if (!supabaseUrl || !supabaseKey) {
   throw new Error('VITE_SUPABASE_URL 또는 VITE_SUPABASE_ANON_KEY 환경변수가 없습니다.')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: { persistSession: false },
-})
+export const supabase = createClient(supabaseUrl, supabaseKey)

@@ -101,20 +101,25 @@ export default function Settings() {
     if (!profile) return
     setDeleteLoading(true)
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token ?? ''
+
+      await supabase.auth.signOut({ scope: 'local' })
+      sessionStorage.removeItem('mukgoorm_profile')
+
       const { error: delError } = await supabase
         .from('users')
         .delete()
         .eq('user_id', profile.user_id)
       if (delError) throw new Error(delError.message)
 
-      const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-user`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session?.access_token ?? ''}`,
+            'Authorization': `Bearer ${accessToken}`,
           },
         },
       )
@@ -123,8 +128,6 @@ export default function Settings() {
         throw new Error(body.error ?? 'Auth 유저 삭제에 실패했어요.')
       }
 
-      sessionStorage.removeItem('mukgoorm_profile')
-      await supabase.auth.signOut()
       navigate('/login')
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '탈퇴에 실패했어요.')
