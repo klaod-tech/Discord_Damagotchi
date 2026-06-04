@@ -239,7 +239,13 @@ export default function Worldcup() {
       setCharGen(gen)
     } catch (e) {
       console.error('[Worldcup] 저장 오류:', e)
-      alert(e instanceof Error ? e.message : '점수 저장 중 오류가 발생했어요. 다시 시도해주세요.')
+      const msg = e instanceof Error ? e.message : ''
+      if (msg.includes('timeout')) {
+        // n8n이 저장은 완료했을 가능성이 높으므로 그냥 진행
+        resumeOrStartGeneration(profile.user_id, '기타')
+      } else {
+        alert(msg || '점수 저장 중 오류가 발생했어요. 다시 시도해주세요.')
+      }
     } finally {
       setSubmitting(false)
     }
