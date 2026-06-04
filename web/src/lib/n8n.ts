@@ -73,7 +73,7 @@ const BOT_WEBHOOK: Record<string, string> = {
   // 음식추천은 recommendFood()로 별도 호출 — 여기 넣지 말 것
 }
 
-const DEFAULT_TIMEOUT = 15000
+const DEFAULT_TIMEOUT = 30000
 const BOT_TIMEOUT: Record<string, number> = {
   이메일: 300000,
 }

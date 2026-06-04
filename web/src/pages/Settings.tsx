@@ -104,10 +104,6 @@ export default function Settings() {
       const { data: { session } } = await supabase.auth.getSession()
       const accessToken = session?.access_token ?? ''
 
-      await supabase.auth.signOut({ scope: 'local' })
-      sessionStorage.removeItem('mukgoorm_profile')
-      localStorage.removeItem('mukgoorm_chargen')
-
       const { error: delError } = await supabase
         .from('users')
         .delete()
@@ -129,6 +125,9 @@ export default function Settings() {
         throw new Error(body.error ?? 'Auth 유저 삭제에 실패했어요.')
       }
 
+      sessionStorage.removeItem('mukgoorm_profile')
+      localStorage.removeItem('mukgoorm_chargen')
+      await supabase.auth.signOut({ scope: 'local' })
       navigate('/login')
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '탈퇴에 실패했어요.')
