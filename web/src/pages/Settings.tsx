@@ -103,11 +103,21 @@ export default function Settings() {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       const accessToken = session?.access_token ?? ''
+      const uid = profile.user_id
+
+      const tables = [
+        'meal_log', 'weight_log', 'weather_log', 'schedule', 'diary',
+        'email_log', 'food_feedback', 'chat_logs', 'user_preference_logits',
+        'worldcup_sessions', 'restaurant_log', 'character_generations',
+      ]
+      for (const table of tables) {
+        await supabase.from(table).delete().eq('user_id', uid)
+      }
 
       const { error: delError } = await supabase
         .from('users')
         .delete()
-        .eq('user_id', profile.user_id)
+        .eq('user_id', uid)
       if (delError) throw new Error(delError.message)
 
       const res = await fetch(
