@@ -347,7 +347,7 @@ export async function sendWorldcupResult(params: {
   const res = await axios.post<WorldcupResponse>(
     '/webhook/worldcup',
     params,
-    { timeout: 30000 },
+    { timeout: 60000 },
   )
   return res.data
 }
